@@ -51,7 +51,7 @@ fi
 
 if [[ ${SYSTEM_OS} = "Linux" ]] || [[ ${GNU_UTILS_INSTALLED} = true ]]; then
     echo "# LS_COLORS setting" >> ${BASHRC}
-    dircolors -b ${PROJECT_DIR}/LS_COLORS >> ${BASHRC}
+    dircolors -b ${PROJECT_DIR}/resource/LS_COLORS >> ${BASHRC}
     echo "" >> ${BASHRC}
 
     echo "# Alias setting" >> ${BASHRC}

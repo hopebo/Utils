@@ -1,0 +1,7 @@
+#!/bin/bash
+
+PROJECT_DIR=$(cd `dirname $0`; pwd)
+
+# Set git commit template
+cp ${PROJECT_DIR}/git-commit-template.txt ~/.git-commit-template.txt
+git config --global commit.template ~/.git-commit-template.txt
