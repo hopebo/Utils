@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Personalized bash environment settings
+
+PROJECT_DIR=$(cd `dirname $0`; pwd)
+
+SYSTEM_OS=`uname -s`
+
+BASHRC=~/.bashrc
+
+usage() {
+    echo "usage: setup [-f bashrc_file]"
+    exit 1
+}
+
+while getopts "f:" opt; do
+    case ${opt} in
+        f)
+            BASHRC=${OPTARG}
+            ;;
+        \?)
+            usage
+            ;;
+    esac
+done
+
+if [[ ! -f ${BASHRC} ]]; then
+    echo "Error! ${BASHRC} doesn't exist."
+    usage
+fi
+
+echo "" >> ${BASHRC}
+echo "# Personalized bash environment settings generated" >> ${BASHRC}
+
+# Check iOS has installed coreutils
+if [[ ${SYSTEM_OS} = "Darwin" ]]; then
+    if command brew --version > /dev/null 2>&1 &&
+           brew list | grep coreutils > /dev/null 2>&1 ; then
+        GNU_UTILS_INSTALLED=true
+        COREUTILS_PATH=`brew --prefix coreutils`/libexec/gnubin
+        PATH=${COREUTILS_PATH}:${PATH}
+        echo -e "export PATH=\"${COREUTILS_PATH}:\${PATH}\"\n" \
+             >> ${BASHRC}
+    else
+        cat <<EOF
+Please install coreutils to get all the features using:
+  brew install coreutils
+EOF
+    fi
+fi
+
+if [[ ${SYSTEM_OS} = "Linux" ]] || [[ ${GNU_UTILS_INSTALLED} = true ]]; then
+    echo "# LS_COLORS setting" >> ${BASHRC}
+    dircolors -b ${PROJECT_DIR}/LS_COLORS >> ${BASHRC}
+    echo "" >> ${BASHRC}
+
+    echo "# Alias setting" >> ${BASHRC}
+    cat ${PROJECT_DIR}/alias >> ${BASHRC}
+    # OS specified alias setting
+    cat ${PROJECT_DIR}/alias-${SYSTEM_OS} >> ${BASHRC} 2>/dev/null
+    echo "" >> ${BASHRC}
+
+    echo "# Environment setting" >> ${BASHRC}
+    cat ${PROJECT_DIR}/variables >> ${BASHRC}
+    echo "" >> ${BASHRC}
+
+    cat <<EOF
+Use the following command to apply these features:
+  source ${BASHRC}
+EOF
+fi
+
+echo "########### End ###########" >> ${BASHRC}
