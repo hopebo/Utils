@@ -9,14 +9,19 @@ SYSTEM_OS=`uname -s`
 BASHRC=~/.bashrc
 
 usage() {
-    echo "usage: setup [-f bashrc_file]"
+    echo "usage: `basename $0` [-c] [-f bashrc_file]"
+    echo "options:"
+    echo " c - clear the contents"
     exit 1
 }
 
-while getopts "f:" opt; do
+while getopts "f:c" opt; do
     case ${opt} in
         f)
             BASHRC=${OPTARG}
+            ;;
+        c)
+            CLEAR=true
             ;;
         \?)
             usage
@@ -27,6 +32,18 @@ done
 if [[ ! -f ${BASHRC} ]]; then
     echo "Error! ${BASHRC} doesn't exist."
     usage
+fi
+
+if [[ ${CLEAR} = true ]]; then
+    if [[ ${SYSTEM_OS} = "Darwin" ]]; then
+       PARAMETER="''"
+    fi
+
+    # In MacOS, -i option needs to be given an backup file suffix.
+    eval "sed -i ${PARAMETER} '/^# Personalized/,/########### End ###########/d' \
+        ${BASHRC}"
+    echo "Clear succeed!"
+    exit
 fi
 
 echo "" >> ${BASHRC}
@@ -56,9 +73,13 @@ if [[ ${SYSTEM_OS} = "Linux" ]] || [[ ${GNU_UTILS_INSTALLED} = true ]]; then
 
     echo "# Alias setting" >> ${BASHRC}
     cat ${PROJECT_DIR}/alias >> ${BASHRC}
-    # OS specified alias setting
-    cat ${PROJECT_DIR}/alias-${SYSTEM_OS} >> ${BASHRC} 2>/dev/null
     echo "" >> ${BASHRC}
+
+    if [[ -s ${PROJECT_DIR}/alias-${SYSTEM_OS} ]]; then
+        echo "# OS specified alias setting" >> ${BASHRC}
+        cat ${PROJECT_DIR}/alias-${SYSTEM_OS} >> ${BASHRC}
+        echo "" >> ${BASHRC}
+    fi
 
     echo "# Environment setting" >> ${BASHRC}
     cat ${PROJECT_DIR}/variables >> ${BASHRC}

@@ -7,3 +7,12 @@ alias ls='ls --color=auto'
 alias rm='rm -i --preserve-root'
 alias vi='vim'
 alias emacs='emacs -nw'
+
+# cd && ls
+cd_ls()
+{
+    cd $1
+    ls
+}
+
+alias cd='cd_ls'

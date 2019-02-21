@@ -1,0 +1,46 @@
+#!/usr/bin/expect
+
+set username ""
+set password ""
+
+for {set i 0} {$i < $argc} {incr i} {
+    set opt [lindex $argv $i]
+    incr i
+    switch $opt {
+	"-d" {
+	    set hostname [lindex $argv $i]
+	}
+	"-u" {
+	    set username [lindex $argv $i]
+	}
+	"-p" {
+	    set password [lindex $argv $i]
+	}
+	"-f" {
+	    set account_file [lindex $argv $i]
+	}
+    }
+}
+
+if {$username == "" || $password == ""} {
+    set account_info [open $account_file r]
+    if {[gets $account_info username] == -1 || [gets $account_info password] == -1} {
+	send_user "Can't read account information from $account_file."
+	exit
+    }
+}
+
+set timeout 10
+
+spawn ssh $username@$hostname
+expect {
+    "*RSA key fingerprint*" {
+	send "yes\r"
+	exp_continue
+    }
+    "*password:*" {
+	send "$password\r"
+    }
+}
+
+interact
