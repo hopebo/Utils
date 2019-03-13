@@ -1,0 +1,81 @@
+#!/usr/bin/expect
+#
+# Execute commands in the remote server. Support passing commands in options or
+# importing commands from local file.
+
+proc usage {} {
+    send_user "Options:\n"
+    send_user "  -h HOST            Target host ip or hostname.\n"
+    send_user "  -u USERNAME        Username for remote server.\n"
+    send_user "  -p PASSWORD        Password of the user.\n"
+    send_user "  -c COMMAND         Commands to execute in the remote server.\n"
+    send_user "  -a ACCOUNT_FILE    File which contains username and password.\n"
+    send_user "  -l                 Import commands from local file or not.\n"
+    send_user "                     When -l option is motivated, -c option should pass local file path.\n"
+}
+
+set username ""
+set password ""
+set local_script "false"
+
+for {set i 0} {$i < $argc} {incr i} {
+    set opt [lindex $argv $i]
+    incr i
+    switch $opt {
+        "-h" {
+            set hostname [lindex $argv $i]
+        }
+        "-u" {
+            set username [lindex $argv $i]
+        }
+        "-p" {
+            set password [lindex $argv $i]
+        }
+        "-c" {
+            set command [lindex $argv $i]
+        }
+        "-a" {
+            set account_file [lindex $argv $i]
+        }
+        "-l" {
+            set local_script "true"
+            incr i -1
+        }
+        default {
+            usage
+            exit 1
+        }
+    }
+}
+
+if {$username == "" || $password == ""} {
+    set account_info [open $account_file r]
+    if {[gets $account_info username] == -1 || [gets $account_info password] == -1} {
+        send_user "Can't read account information from $account_file."
+        exit
+    }
+}
+
+proc authenticate {password} {
+    expect {
+        "*RSA key fingerprint*" {
+            send "yes\r"
+            exp_continue
+        }
+        "*password:*" {
+            send "$password\r"
+        }
+    }
+    interact
+}
+
+if {$local_script == "true"} {
+    if {! [file exists $command]} {
+        send_user "Local script $command doesn't exist."
+        exit
+    }
+    set command "`cat $command`"
+}
+
+spawn bash -c "ssh -t $username@$hostname \"$command\""
+authenticate $password

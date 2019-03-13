@@ -1,0 +1,75 @@
+#!/usr/bin/expect
+#
+# Transfer files to the remote server. Support automatically authenticate.
+
+proc usage {} {
+    send_user "Options:\n"
+    send_user "  -h HOST            Target host ip or hostname.\n"
+    send_user "  -u USERNAME        Username for remote server.\n"
+    send_user "  -p PASSWORD        Password of the user.\n"
+    send_user "  -d DESTINATION     Target directory in remote server.\n"
+    send_user "  -a ACCOUNT_FILE    File which contains username and password.\n"
+    send_user "  -f FILE            File path to be transferred.\n"
+}
+
+set username ""
+set password ""
+set destination "~"
+
+for {set i 0} {$i < $argc} {incr i} {
+    set opt [lindex $argv $i]
+    incr i
+    switch $opt {
+        "-h" {
+            set hostname [lindex $argv $i]
+        }
+        "-u" {
+            set username [lindex $argv $i]
+        }
+        "-p" {
+            set password [lindex $argv $i]
+        }
+        "-d" {
+            set destination [lindex $argv $i]
+        }
+        "-a" {
+            set account_file [lindex $argv $i]
+        }
+        "-f" {
+            set filename [lindex $argv $i]
+        }
+        default {
+            usage
+            exit 1
+        }
+    }
+}
+
+if {$username == "" || $password == ""} {
+    set account_info [open $account_file r]
+    if {[gets $account_info username] == -1 || [gets $account_info password] == -1} {
+        send_user "Can't read account information from $account_file."
+        exit
+    }
+}
+
+proc authenticate {password} {
+    expect {
+        "*RSA key fingerprint*" {
+            send "yes\r"
+            exp_continue
+        }
+        "*password:*" {
+            send "$password\r"
+        }
+    }
+    interact
+}
+
+if {$destination != "~"} {
+    spawn bash -c "ssh -t $username@$hostname 'mkdir -p $destination'"
+    authenticate $password
+}
+
+spawn bash -c "scp -r $filename $username@$hostname:$destination"
+authenticate $password
