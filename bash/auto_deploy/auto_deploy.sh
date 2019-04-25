@@ -21,7 +21,14 @@ Options:
   -F FILE_LIST                      File which contains resource file each row.
   -d DESTINATION                    Directory in remote server to deploy as the base path.
   -a ACCOUNT_FILE                   File which contains username and password in two rows to authenticate.
+  -s COMMANDS_SCRIPT                Script file which contains commands to execute on remote server.
   -j                                Install jre or not.
+  -R                                Install R or not.
+  -p                                Add public key or not.
+  -l                                Install lcov or not.
+  -c                                Install clang+llvm or not.
+  -C                                Install cmake or not.
+  -v                                Install valgrind or not.
 EOF
 }
 
@@ -29,7 +36,7 @@ basepath=$(cd `dirname $0`; pwd)
 destination=~/env
 auto_install_options=""
 
-while getopts "h:H:f:F:d:a:j" opt; do
+while getopts "jpRlcCvh:H:f:F:d:a:s:" opt; do
     case $opt in
         h)
             host=$OPTARG
@@ -49,8 +56,29 @@ while getopts "h:H:f:F:d:a:j" opt; do
         a)
             account_file=$OPTARG
             ;;
+        s)
+            commands_script=$OPTARG
+            ;;
         j)
             auto_install_options="${auto_install_options} -j"
+            ;;
+        p)
+            auto_install_options="${auto_install_options} -p"
+            ;;
+        R)
+            auto_install_options="${auto_install_options} -R"
+            ;;
+        l)
+            auto_install_options="${auto_install_options} -l"
+            ;;
+        c)
+            auto_install_options="${auto_install_options} -c"
+            ;;
+        C)
+            auto_install_options="${auto_install_options} -C"
+            ;;
+        v)
+            auto_install_options="${auto_install_options} -v"
             ;;
         \?)
             usage
@@ -60,15 +88,30 @@ while getopts "h:H:f:F:d:a:j" opt; do
 done
 
 if [[ -z ${host} ]] && [[ ! -z ${host_list} ]]; then
-    host=`cat ${host_list} | xargs echo`
+    hosts=`cat ${host_list} | xargs echo`
+    for hostname in ${hosts}; do
+        if [[ ${hostname} != \#* ]]; then
+            host="${host} ${hostname}"
+        fi
+    done
 fi
 
 if [[ -z ${file} ]] && [[ ! -z ${file_list} ]]; then
-    file=`cat ${file_list} | xargs echo`
+    files=`cat ${file_list} | xargs echo`
+    for filename in ${files}; do
+        if [[ ${filename} != \#* ]]; then
+            file="${file} ${filename}"
+        fi
+    done
 fi
 
 if [[ -z ${host} ]] || [[ -z ${file} ]] || [[ -z ${account_file} ]]; then
     echo "Please provide the right account file."
+    exit 1
+fi
+
+if ! command -v expect >/dev/null 2>&1; then
+    echo "Please install expect firstly."
     exit 1
 fi
 
@@ -87,11 +130,17 @@ batch_scp.sh -f ${basepath}/auto_install -h "${host}" -d ${destination} \
 echo_green "Utilities transfer to ${host} successfully."
 
 for hostname in ${host}; do
-    # Automatically yum install.
-    echo_green "Starting yum installation on ${hostname} ..."
-    remote_execution.exp -h ${hostname} -a ${account_file} -l \
-                         -c "yum_install.sh"
-    echo_green "Yum installation on ${hostname} success."
+    if [[ ${hostname} = \#* ]]; then
+        continue
+    fi
+
+    if [[ ! -z ${commands_script} ]]; then
+        # Execute commands on remote servers.
+        echo_green "Starting executing commands on ${hostname} ..."
+        remote_execution.exp -h ${hostname} -a ${account_file} -l \
+                             -c "${commands_script}"
+        echo_green "Executing commands on ${hostname} success."
+    fi
 
     # Install using scripts on the remote server.
     echo_green "Starting automatic installation on ${hostname} ..."
@@ -100,4 +149,11 @@ for hostname in ${host}; do
                             -r ${destination}/resources -d ${destination} \
                             ${auto_install_options}"
     echo_green "Automatic installation on ${hostname} success."
+
+    # Clear up workspace on the remote server.
+    echo_green "Clearing up workspace on ${hostname} ..."
+    remote_execution.exp -h ${hostname} -a ${account_file} \
+                         -c "rm -rf ${destination}/resources \
+                            ${destination}/auto_install"
+    echo_green "Workspace clearing up on ${hostname} success."
 done

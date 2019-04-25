@@ -16,3 +16,9 @@ cd_ls()
 }
 
 alias cd='cd_ls'
+
+emacs_man() {
+    emacsclient -nw -e "(man \"$1\")"
+}
+
+alias man='emacs_man'

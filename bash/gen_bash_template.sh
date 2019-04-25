@@ -24,7 +24,7 @@ fi
 while getopts "f:h" opt; do
     case $opt in
         f)
-            file=$OPTARG
+            FILE=$OPTARG
             ;;
         h)
             usage
@@ -40,12 +40,12 @@ done
 dump_options()
 {
     echo "Dumping the options used by $0 ..."
-    echo "file=${file}"
+    echo "FILE=${FILE}"
 }
 
 dump_options
 
-cat > ${file} <<\CONTENTS
+cat > ${FILE} <<\CONTENTS
 #!/bin/bash
 #
 # Declare this script's functions and contents.
@@ -64,12 +64,12 @@ This script is intended to generate bash script template.
 EOF
 }
 
-basepath=$(cd `dirname $0`; pwd)
+BASEPATH=$(cd `dirname $0`; pwd)
 
 while getopts "e:h" opt; do
     case $opt in
         e)
-            example=$OPTARG
+            EXAMPLE=$OPTARG
             ;;
         h)
             usage
