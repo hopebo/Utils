@@ -129,7 +129,7 @@ if [[ ${GEN_ALIAS} == true ]]; then
     cat > ${OUTPUT_DIR}/mysql-alias-${PORT}.sh <<EOF
 #!/bin/bash
 
-export PATH=${INSTALL_DIR}/bin:${PATH}
+export PATH=${INSTALL_DIR}/bin:\${PATH}
 
 alias mysqld_safe.al="mysqld_safe --defaults-file=${MY_CNF} ${GDB} > /dev/null 2>&1 &"
 alias ini.al="mysqld --defaults-file=${MY_CNF} --initialize-insecure"
