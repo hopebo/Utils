@@ -5,8 +5,18 @@ alias l.='ls -d .* --color=auto'
 alias ll='ls -l --color=auto'
 alias ls='ls --color=auto'
 alias rm='rm -i --preserve-root'
+alias grep='grep --color=auto'
 alias vi='vim'
 alias emacs='emacs -nw'
+alias et='emacsclient -t'
+
+# Kill emacs server
+kill_emacs() {
+    echo "Shutting down emacs server..."
+    emacsclient -e '(kill-emacs)'
+}
+
+alias ek='kill_emacs'
 
 # cd && ls
 cd_ls()
@@ -18,7 +28,7 @@ cd_ls()
 alias cd='cd_ls'
 
 emacs_man() {
-    emacsclient -nw -e "(man \"$1\")"
+    emacsclient -nw -t -e "(man \"$1\")"
 }
 
 alias man='emacs_man'

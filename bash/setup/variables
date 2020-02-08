@@ -1,5 +1,5 @@
 # Default editor triggered by other applications
-export EDITOR="emacsclient -nw"
+export EDITOR="emacsclient -nw -t"
 # Create emacs daemon server automatically if server doesn't exist
 export ALTERNATE_EDITOR=""
 
