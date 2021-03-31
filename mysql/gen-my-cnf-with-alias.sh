@@ -67,14 +67,18 @@ if [[ ${PORT} == "" ]]; then
     usage
 fi
 
-if [[ ! -d ${OUTPUT_DIR} ]]; then
-    mkdir -p ${OUTPUT_DIR}
-fi
-
 INSTALL_DIR=`realpath ${INSTALL_DIR}`
 DATA_DIR=`realpath ${DATA_DIR}`
 OUTPUT_DIR=`realpath ${OUTPUT_DIR}`
 MY_CNF=${OUTPUT_DIR}/my-${PORT}.cnf
+
+if [[ ! -d ${OUTPUT_DIR} ]]; then
+    mkdir -p ${OUTPUT_DIR}
+fi
+
+if [[ ! -d ${INSTALL_DIR}/tmp ]]; then
+    mkdir -p ${INSTALL_DIR}/tmp
+fi
 
 cat > ${MY_CNF} <<EOF
 [mysqld]
@@ -117,6 +121,16 @@ max_prepared_stmt_count        = 1048576
 max_connections                = 1000
 # The number of the port on which the server listens for TCP/IP connections.
 port                           = ${PORT}
+# The default authentication plugin. These values are permitted: mysql_native_password, sha256_password, caching_sha2_password.
+default_authentication_plugin  = mysql_native_password
+# Write a core file if mysqld dies.
+core-file
+# The size in bytes of the buffer pool, the memory area where InnoDB caches table and index data. The default value is 128MB.
+innodb_buffer_pool_size        = 134217728
+# Whether the InnoDB adaptive hash index is enabled or disabled. It may be desirable, depending on your workload, to dynamically enable or disable adaptive hash indexing to improve query performance.
+innodb_adaptive_hash_index     = OFF
+# The path of the directory to use for creating temporary files.
+tmpdir                         = ${INSTALL_DIR}/tmp
 
 [mysqld_safe]
 # Passed to mysqld_safe process to communicate with mysqld process.

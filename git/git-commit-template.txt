@@ -36,3 +36,5 @@
 #    Separate subject from body with a blank line
 #    Use the body to explain what and why vs. how
 #    Can use multiple lines with "-" for bullet points in body
+
+# Commit message check: xxxfix #id, xxxto #id, xxxtask #id.

@@ -10,6 +10,10 @@ set print pretty on
 # When printing a pointer to object, print its subclass' type
 set print object
 
+# When printing an array, display the values of arrays using longer multi-line format.
+# Otherwise in a simple one-line format.
+set print array on
+
 # Alias of enable and disable
 define e
   dont-repeat
@@ -29,31 +33,25 @@ define de
   end
 end
 
-define polar
+define mysql13
   dont-repeat
-  file /flash12/hope.lb/Documents/Codes/PolarDB_80/runtime_output_directory/mysqld
-  run --defaults-file=/flash12/hope.lb/bin/my-33332.cnf --gdb --debug
-end
-
-define polar20
-  dont-repeat
-  file /flash12/hope.lb/Documents/Codes/master-2.0/bld_Debug/runtime_output_directory/mysqld
-  run --defaults-file=/flash12/hope.lb/bin/my-28342.cnf --gdb --debug
+  file /PATH/runtime_output_directory/mysqld
+  run --defaults-file=/PATH/my.cnf --gdb --debug
 end
 
 # Debug mysql server.
-define mysql
+define server
   dont-repeat
   if $argc == 0
-    help mysql
+    help server
   else
     file runtime_output_directory/mysqld
     run --defaults-file=$arg0 --gdb --debug
   end
 end
-document mysql
+document server
 Debug an instance of mysql server.
-Usage: mysql cnf_file
+Usage: server cnf_file
 end
 
 # examine(x) x/<n/f/u> <addr>
@@ -90,8 +88,29 @@ define unlock
   set scheduler-locking off
 end
 
-# Mysql tool
-source ~/mysqld-gdb.py
+define dp
+  dont-repeat
+  disable pretty-printer
+end
 
-# Std tool
-source ~/std-gdb.py
+define ep
+  dont-repeat
+  enable pretty-printer
+end
+
+python
+import sys
+import os
+sys.path.insert(0, os.path.expanduser('/PATH/Utils/gdb/'))
+end
+
+# Mysql tool
+source /PATH/Utils/gdb/mysqld-gdb.py
+
+# Import stdlib pretty printer
+python
+import sys
+import os
+sys.path.insert(0, os.path.expanduser('/PATH/Utils/gdb/libstdc++-v3'))
+from libstdcxx.v6.printers import register_libstdcxx_printers
+end

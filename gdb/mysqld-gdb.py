@@ -2,49 +2,10 @@
 from __future__ import print_function # python2.X support
 import re
 
+import utils.convenience_variable as cv
+
 # Define a mysql command prefix for all mysql related command
 gdb.Command('mysql', gdb.COMMAND_DATA, prefix=True)
-
-'''
-Convenience variables' names scroll mechanism.
-'''
-def gdb_set_convenience_variable(var_name, var):
-    pass
-
-def get_convenince_name():
-    return ''
-
-if hasattr(gdb, 'set_convenience_variable'):
-    convenience_name_firstchar = 'a'
-    convenience_name_sequence = [convenience_name_firstchar]
-
-    def generate_convenince_name():
-        global convenience_name_sequence
-        convenience_name_maxlen = 1
-
-        cname = ''.join(convenience_name_sequence)
-        cnlen = len(convenience_name_sequence)
-        for i, c in reversed(list(enumerate(convenience_name_sequence))):
-            if c == 'z':
-                continue
-            convenience_name_sequence[i] = chr(ord(c) + 1)
-            for j in range(i + 1, cnlen):
-                convenience_name_sequence[j] = convenience_name_firstchar
-            break
-        else:
-            convenience_name_sequence = [convenience_name_firstchar] * \
-                (1 if cnlen == convenience_name_maxlen else (cnlen + 1))
-
-        return cname
-
-    def gdb_set_convenience_variable(var_name, var):
-        gdb.set_convenience_variable(var_name, var)
-
-    def get_convenince_name():
-        return generate_convenince_name()
-
-    def get_array_index_name(convenience_name_prefix, index):
-        return "%s%d" % (convenience_name_prefix, index)
 
 '''
 Thread printing utility.
@@ -184,7 +145,7 @@ def get_value_from_list_node(nodetype, node, conven_name):
     val = node['info'].cast(nodetype.pointer())
     val = val.cast(val.dynamic_type)
 
-    gdb_set_convenience_variable(conven_name, val)
+    cv.gdb_set_convenience_variable(conven_name, val)
 
     return val
 
@@ -200,7 +161,7 @@ class MySQLListPrinter:
             self.base = head
             self.count = 0
             self.end_of_list = gdb.parse_and_eval('end_of_list').address
-            self.convenience_name_prefix = get_convenince_name()
+            self.convenience_name_prefix = cv.get_convenience_name()
 
         def __iter__(self):
             return self
@@ -212,9 +173,9 @@ class MySQLListPrinter:
             self.base = elt['next']
             count = self.count
             self.count = self.count + 1
-            cname = get_array_index_name(self.convenience_name_prefix, count)
+            cname = "%s%d" % (self.convenience_name_prefix, count)
             val = get_value_from_list_node(self.nodetype, elt, cname)
-            return ('$%s' % cname, '(%s) %s' % (val.type, val))
+            return ('$%s' % cname, '%s' % val)
 
         def next(self):
             """For python 2"""
@@ -231,18 +192,27 @@ class MySQLListPrinter:
     def to_string(self):
         return '%s' % self.typename if self.val['elements'] != 0 else 'empty %s' % self.typename
 
-import gdb.printing
+from gdb.printing import RegexpCollectionPrettyPrinter
+# Make pointer of dynamic types supported.
+class CustomRegexpCollectionPrettyPrinter(RegexpCollectionPrettyPrinter):
+    def __init__(self, name):
+        super(CustomRegexpCollectionPrettyPrinter, self).__init__(name)
 
-def build_pretty_printer():
-    pp = gdb.printing.RegexpCollectionPrettyPrinter(
-        "mysqld")
-    pp.add_printer('List', '^List<.*>$', MySQLListPrinter)
-    return pp
+    def __call__(self, val):
+        # Compatible for pointer of dynamic types.
+        typename = str(val.type)
+        if not typename:
+            return None
 
-gdb.printing.register_pretty_printer(
-    gdb.current_objfile(),
-    build_pretty_printer(),
-    True)
+         # Iterate over table of type regexps to determine
+         # if a printer is registered for that type.
+         # Return an instantiation of the printer if found.
+        for printer in self.subprinters:
+            if printer.enabled and printer.compiled_re.search(typename):
+                return printer.gen_printer(val)
+
+        # Cannot find a pretty printer.  Return None.
+        return None
 
 '''
 MySQL query block structure.
@@ -292,10 +262,10 @@ class QueryBlockTree(gdb.Command):
 
     def add_object(self, queue, select, stack_depth):
         index = 0
-        while str(select) != '0x0':
+        while select:
             queue.put(MySQLQueryBlock(stack_depth, index, select))
             slave = select.dereference()['slave']
-            if str(slave) != '0x0':
+            if slave:
                 self.add_object(queue, slave, stack_depth + 1)
             select = select.dereference()['next']
             index += 1
@@ -316,14 +286,14 @@ class QueryBlockTree(gdb.Command):
 
         self.add_object(q, select, 0)
 
-        cv_name_prefix = get_convenince_name()
+        cv_name_prefix = cv.get_convenience_name()
         i = 0
         while not q.empty():
             element = q.get()
-            cv_name = get_array_index_name(cv_name_prefix, i)
+            cv_name = "%s%d" % (cv_name_prefix, i)
             print("${} = {}".format(cv_name, element))
-            gdb.set_convenience_variable(
-                '%s' % cv_name, element.value.cast(element.value.dynamic_type))
+            cv.gdb_set_convenience_variable(
+                cv_name, element.value.cast(element.value.dynamic_type))
             i += 1
 
 QueryBlockTree()
@@ -342,7 +312,7 @@ class ExpressionTraverser(gdb.Command):
             print("usage: mysql exprtree [Item]")
             return
         expr = gdb.parse_and_eval(arg)
-        self.cname_prefix = get_convenince_name()
+        self.cname_prefix = cv.get_convenience_name()
         self.var_index = 0
         self.level_graph = []
         self.do_walk(expr, 0)
@@ -354,16 +324,12 @@ class ExpressionTraverser(gdb.Command):
         for i, c in enumerate(self.level_graph):
             if c == '`':
                 self.level_graph[i] = ' '
-        cname = get_array_index_name(self.cname_prefix, self.var_index)
+        cname = "%s%d" % (self.cname_prefix, self.var_index)
         left_margin = "{}${} =".format('' if level == 0 else '--', cname)
         self.var_index += 1
         item_show_info = ''
-        show_func = self.get_show_func(expr_typed.target())
-        if show_func is not None:
-            item_show_info = show_func(expr_casted)
-        print("{}{} ({}) {} {}".format(
-             level_graph, left_margin, expr_typed, expr, item_show_info))
-        gdb_set_convenience_variable(cname, expr_casted)
+        print("{}{} {}".format(level_graph, left_margin, expr))
+        cv.gdb_set_convenience_variable(cname, expr_casted)
         walk_func = self.get_walk_func(expr_typed.target())
         if walk_func is None:
             return
@@ -400,11 +366,8 @@ class ExpressionTraverser(gdb.Command):
     def get_walk_func(self, item_type):
         return self.get_action_func(item_type, 'walk_')
 
-    def get_show_func(self, item_type):
-        return self.get_action_func(item_type, 'show_')
-
     #
-    # walk and show functions for each Item class
+    # walk functions for each Item class
     #
 
     def walk_Item_func(self, val):
@@ -427,15 +390,157 @@ class ExpressionTraverser(gdb.Command):
             cur_elt = cur_elt.dereference()['next']
         return children
 
-    def show_Item_ident(self, item):
+ExpressionTraverser()
+
+def PointerDisplay(value):
+    return "({}) {}".format(value.type, value.format_string(raw = True))
+
+class ItemFieldPrinter:
+    "Print a pointer to MySQL Item_field class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        item = self.val.dereference()
+        trait = ""
         db_cata = []
         if item['table_name']:
             db_cata.append(item['table_name'].string())
+
         if item['field_name']:
             db_cata.append(item['field_name'].string())
-        return 'field = ' + '.'.join(db_cata)
 
-    def show_Item_int(self, item):
-        return 'value = ' + str(item['value'])
+        trait = "field = " + '.'.join(db_cata)
 
-ExpressionTraverser()
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
+class ItemDerivedPrinter:
+    "Print a pointer to MySQL Item derived class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        val = self.val.cast(self.val.dynamic_type)
+        return PointerDisplay(val)
+
+class ItemPointerPrinter:
+    "Print a pointer of MySQL base Item class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        # Case the base pointer to derived class.
+        val_derived = self.val.cast(self.val.dynamic_type)
+        return str(val_derived) if val_derived.type != self.val.type else \
+            self.val.format_string(raw = True)
+
+class TableListPrinter:
+    "Print a pointer of MySQL TABLE_LIST class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        table_list = self.val.dereference()
+
+        trait = ""
+        if table_list['table_name'] and table_list['table_name'].string():
+            trait = "table_name = " + table_list['table_name'].string()
+
+        if table_list['nested_join']:
+            trait += "nested join"
+
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
+def build_pretty_printer():
+    pp = CustomRegexpCollectionPrettyPrinter(
+        "mysqld")
+    pp.add_printer('List', '^List<.*>$', MySQLListPrinter)
+    pp.add_printer('Item_field *', '^Item_field \*$', ItemFieldPrinter)
+    pp.add_printer('Item *', '^Item \*$', ItemPointerPrinter)
+    pp.add_printer('Item_ *', '^Item_.* \*$', ItemDerivedPrinter)
+    pp.add_printer('PT *', '^PT.* \*$', ItemDerivedPrinter)
+    pp.add_printer('TABLE_LIST *', '^TABLE_LIST \*$', TableListPrinter)
+    return pp
+
+gdb.printing.register_pretty_printer(
+    gdb.current_objfile(),
+    build_pretty_printer(),
+    True)
+
+'''
+Helper function to determine whether the parameter is derived from
+corresponding class.
+'''
+def derives_from(val, type_name):
+    try:
+        derived_type = gdb.lookup_type(type_name)
+    except:
+        return False
+
+    try:
+        derived = val.dynamic_cast(derived_type.pointer())
+    except:
+        return False
+
+    return True if derived else False
+
+class ItemStringPrinter:
+    "Print a pointer to MySQL Item_string class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        item = self.val.dereference()
+        trait = ""
+        if item['str_value']['m_ptr']:
+            trait = "{} \"{}\"".format("str_value =",
+                                       item['str_value']['m_ptr'].string())
+
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
+class ItemIntPrinter:
+    "Print a pointer to MySQL Item_int class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        val_derived = self.val.cast(self.val.dynamic_type)
+        item = val_derived.dereference()
+        trait = "value = " + str(item['value'])
+
+        return "{} {}".format(PointerDisplay(val_derived), trait)
+
+class CustomPrettyPrinterLocator(gdb.printing.PrettyPrinter):
+    """Given a gdb.Value, search for a custom pretty printer"""
+
+    def __init__(self):
+        super(CustomPrettyPrinterLocator, self).__init__(
+            "misc", []
+        )
+
+    def __call__(self, val):
+        """Return the custom formatter if the type can be handled"""
+
+        typename = str(val.type)
+
+        if derives_from(val, "Item_string"):
+            return ItemStringPrinter(val)
+
+        if derives_from(val, "Item_int"):
+            return ItemIntPrinter(val)
+
+        return None
+
+gdb.printing.register_pretty_printer(
+    gdb.current_objfile(),
+    CustomPrettyPrinterLocator(),
+    True)

@@ -1,0 +1,110 @@
+#!/bin/sh
+#
+# This file is released under the terms of the Artistic License.
+# Please see the file LICENSE, included in this package, for details.
+#
+# Copyright (C) 2002-2008 Open Source Development Labss, Inc.
+#               2002-2014 Mark Wong
+#               2014      2ndQuadrant, Ltd.
+#
+
+MYSQL="$MYSQL_CMD -s"
+
+# Load tables
+# This background stuff is honestly kinda ugly. IMO the right way to do this is
+# to utilize make -j
+# For each table, create indexes in sequence, since query plans may change with
+# differ order of index definitions.
+load_table() {
+	table=$1
+	if [ "x$2" = "x" ]; then
+		file=$table.tbl
+	else
+		file=$2.tbl
+	fi
+	# This disable/enable trick only works on MyISAM for the moment. 
+	$MYSQL -e "alter table $table disable keys;"
+	$MYSQL_IMPORT --fields-terminated-by='|' $DBNAME $DSS_PATH/$file
+	$MYSQL -e "alter table $table enable keys;"
+}
+
+supplier()
+{
+	load_table supplier
+
+	$MYSQL -e "CREATE INDEX i_s_nationkey ON supplier (s_nationkey);"
+	$MYSQL -e "analyze table supplier"
+}
+
+part()
+{
+	load_table part
+
+	$MYSQL -e "analyze table part"
+}
+
+partsupp()
+{
+	load_table partsupp
+
+	$MYSQL -e "CREATE INDEX i_ps_partkey ON partsupp (ps_partkey);"
+	$MYSQL -e "CREATE INDEX i_ps_suppkey ON partsupp (ps_suppkey);"
+	$MYSQL -e "analyze table partsupp"
+}
+
+customer()
+{
+	load_table customer
+
+	$MYSQL -e "CREATE INDEX i_c_nationkey ON customer (c_nationkey);"
+	$MYSQL -e "analyze table customer"
+}
+
+orders()
+{
+	load_table orders
+
+	$MYSQL -e "CREATE INDEX i_o_custkey ON orders (o_custkey);"
+	$MYSQL -e "CREATE INDEX i_o_orderdate ON orders (o_orderdate);"
+	$MYSQL -e "analyze table orders"
+}
+
+lineitem()
+{
+	load_table lineitem
+
+	$MYSQL -e "CREATE INDEX i_l_orderkey ON lineitem (l_orderkey);"
+	$MYSQL -e "CREATE INDEX i_l_partkey ON lineitem (l_partkey);"
+	$MYSQL -e "CREATE INDEX i_l_suppkey ON lineitem (l_suppkey);"
+	$MYSQL -e "CREATE INDEX i_l_partkey_suppkey ON lineitem (l_partkey, l_suppkey);"
+	$MYSQL -e "CREATE INDEX i_l_shipdate ON lineitem (l_shipdate);"
+	$MYSQL -e "CREATE INDEX i_l_commitdate ON lineitem (l_commitdate);"
+	$MYSQL -e "CREATE INDEX i_l_receiptdate ON lineitem (l_receiptdate);"
+	$MYSQL -e "analyze table lineitem"
+}
+
+nation()
+{
+	load_table nation
+
+	$MYSQL -e "CREATE INDEX i_n_regionkey ON nation (n_regionkey);"
+	$MYSQL -e "analyze table nation"
+}
+
+region()
+{
+	load_table region
+
+	$MYSQL -e "analyze table region"
+}
+
+supplier &
+part &
+partsupp &
+customer &
+orders &
+lineitem &
+nation &
+region &
+
+wait
