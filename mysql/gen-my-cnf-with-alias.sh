@@ -131,6 +131,8 @@ innodb_buffer_pool_size        = 134217728
 innodb_adaptive_hash_index     = OFF
 # The path of the directory to use for creating temporary files.
 tmpdir                         = ${INSTALL_DIR}/tmp
+# Enable Debug Sync facility with a non-zero value seconds.
+debug-sync-timeout             = 60
 
 [mysqld_safe]
 # Passed to mysqld_safe process to communicate with mysqld process.

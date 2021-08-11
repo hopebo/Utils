@@ -460,6 +460,41 @@ class TableListPrinter:
 
         return "{} {}".format(PointerDisplay(self.val), trait)
 
+class MdlRequestPrinter:
+    "Print a pointer of MySQL MDL_request class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        mdl_request = self.val.dereference()
+
+        trait = "type = {}, duration = {}, key = {}".format(
+            mdl_request['type'], mdl_request['duration'],
+            mdl_request['key'].address)
+
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
+class MdlKeyPrinter:
+    "Print a pointer of MySQL MDL_key class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        mdl_key = self.val.dereference()
+        mdl_namespace = self.val['m_ptr'][0].cast(
+            gdb.lookup_type('MDL_key::enum_mdl_namespace'))
+
+        trait = "namespace = {}, m_ptr = {}".format(mdl_namespace,
+                                                    mdl_key['m_ptr'])
+
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
 def build_pretty_printer():
     pp = CustomRegexpCollectionPrettyPrinter(
         "mysqld")
@@ -469,6 +504,8 @@ def build_pretty_printer():
     pp.add_printer('Item_ *', '^Item_.* \*$', ItemDerivedPrinter)
     pp.add_printer('PT *', '^PT.* \*$', ItemDerivedPrinter)
     pp.add_printer('TABLE_LIST *', '^TABLE_LIST \*$', TableListPrinter)
+    pp.add_printer('MDL_request *', '^MDL_request \*$', MdlRequestPrinter)
+    pp.add_printer('MDL_key *', '^MDL_key \*$', MdlKeyPrinter)
     return pp
 
 gdb.printing.register_pretty_printer(
