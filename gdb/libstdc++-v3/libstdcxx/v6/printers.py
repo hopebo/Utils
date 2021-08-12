@@ -129,9 +129,16 @@ class UniquePointerPrinter:
         self.val = val
 
     def to_string (self):
-        v = self.val['_M_t']['_M_head_impl']
-        return ('std::unique_ptr<%s> containing %s' % (str(v.type.target()),
-                                                       str(v)))
+        # std version compatible
+        try:
+            v = self.val['_M_t']['_M_t']['_M_head_impl']
+        except:
+            v = self.val['_M_t']['_M_head_impl']
+
+        cv_name = cv.get_convenience_name()
+        cv.gdb_set_convenience_variable(cv_name, v)
+        return "std::unique_ptr<{}> containing {}".format(
+            v.type.target(), cv.gdb_print_cv(cv_name, TypeDisplay(v)))
 
 class StdListPrinter:
     "Print a std::list"
