@@ -499,11 +499,14 @@ class StdMapPrinter:
             else:
                 item = self.pair['second']
 
-            self.count = self.count + 1
             cv_name = "%s%d" % (self.cv_prefix, self.count)
             cv.gdb_set_convenience_variable(cv_name, item)
 
-            return ("$%s" % cv_name, TypeDisplay(item))
+            result = ('[%d]' % self.count,
+                      cv.gdb_print_cv(cv_name, TypeDisplay(item)))
+
+            self.count = self.count + 1
+            return result
 
     def __init__ (self, typename, val):
         self.typename = typename
@@ -518,6 +521,9 @@ class StdMapPrinter:
         node = find_type(rep_type, '_Link_type')
         node = node.strip_typedefs()
         return self._iter (RbtreeIterator (self.val), node)
+
+    def display_hint (self):
+        return 'map'
 
 class StdSetPrinter:
     "Print a std::set or std::multiset"
@@ -579,7 +585,7 @@ class StdBitsetPrinter:
             tsize = wtype.target ().sizeof
         else:
             words = [words]
-            tsize = wtype.sizeof 
+            tsize = wtype.sizeof
 
         nwords = wtype.sizeof / tsize
         result = []
@@ -713,7 +719,7 @@ class Tr1HashtableIterator(Iterator):
             self.node = self.buckets[self.bucket]
             if self.node:
                 break
-            self.bucket = self.bucket + 1        
+            self.bucket = self.bucket + 1
 
     def __iter__ (self):
         return self
@@ -814,7 +820,7 @@ class Tr1UnorderedMapPrinter:
         data = self.flatten (imap (self.format_one, StdHashtableIterator (self.hashtable())))
         # Zip the two iterators together.
         return izip (counter, data)
-        
+
 
     def display_hint (self):
         return 'map'
