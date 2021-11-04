@@ -20,6 +20,11 @@ import itertools
 import re
 import sys, os, errno
 
+import utils.convenience_variable as cv
+
+def TypeDisplay(value):
+    return "({}) {}".format(value.type, value.format_string(raw = True))
+
 ### Python 2 + Python 3 compatibility code
 
 # Resources about compatibility:
@@ -268,7 +273,11 @@ class UniquePointerPrinter:
         return SmartPtrIterator(self.pointer)
 
     def to_string (self):
-        return ('std::unique_ptr<%s>' % (str(self.val.type.template_argument(0))))
+        cv_name = cv.get_convenience_name()
+        cv.gdb_set_convenience_variable(cv_name, self.pointer)
+        return "std::unique_ptr<{}> containing {}".format(
+            self.pointer.type.target(),
+            cv.gdb_print_cv(cv_name, TypeDisplay(self.pointer)))
 
 def get_value_from_aligned_membuf(buf, valtype):
     """Returns the value held in a __gnu_cxx::__aligned_membuf."""
@@ -414,6 +423,7 @@ class StdVectorPrinter:
                 self.item = start
                 self.finish = finish
             self.count = 0
+            self.cv_prefix = cv.get_convenience_name()
 
         def __iter__(self):
             return self
@@ -421,6 +431,7 @@ class StdVectorPrinter:
         def __next__(self):
             count = self.count
             self.count = self.count + 1
+            cv_name = "%s%d" % (self.cv_prefix, self.count)
             if self.bitvec:
                 if self.item == self.finish and self.so >= self.fo:
                     raise StopIteration
@@ -429,13 +440,14 @@ class StdVectorPrinter:
                 if self.so >= self.isize:
                     self.item = self.item + 1
                     self.so = 0
-                return ('[%d]' % count, elt)
             else:
                 if self.item == self.finish:
                     raise StopIteration
                 elt = self.item.dereference()
                 self.item = self.item + 1
-                return ('[%d]' % count, elt)
+
+            cv.gdb_set_convenience_variable(cv_name, elt)
+            return ("$%s" % cv_name, TypeDisplay(elt))
 
     def __init__(self, typename, val):
         self.typename = strip_versioned_namespace(typename)
@@ -464,9 +476,6 @@ class StdVectorPrinter:
         else:
             return ('%s of length %d, capacity %d'
                     % (self.typename, int (finish - start), int (end - start)))
-
-    def display_hint(self):
-        return 'array'
 
 class StdVectorIteratorPrinter:
     "Print std::vector::iterator"
@@ -704,6 +713,7 @@ class StdMapPrinter:
             self.rbiter = rbiter
             self.count = 0
             self.type = type
+            self.cv_prefix = cv.get_convenience_name()
 
         def __iter__(self):
             return self
@@ -717,7 +727,13 @@ class StdMapPrinter:
                 item = n['first']
             else:
                 item = self.pair['second']
-            result = ('[%d]' % self.count, item)
+
+            cv_name = "%s%d" % (self.cv_prefix, self.count)
+            cv.gdb_set_convenience_variable(cv_name, item)
+
+            result = ('[%d]' % self.count,
+                      cv.gdb_print_cv(cv_name, TypeDisplay(item)))
+
             self.count = self.count + 1
             return result
 
@@ -828,6 +844,7 @@ class StdDequePrinter:
             self.last = last
             self.buffer_size = buffer_size
             self.count = 0
+            self.cv_prefix = cv.get_convenience_name()
 
         def __iter__(self):
             return self
@@ -836,7 +853,9 @@ class StdDequePrinter:
             if self.p == self.last:
                 raise StopIteration
 
-            result = ('[%d]' % self.count, self.p.dereference())
+            cv_name = "%s%d" % (self.cv_prefix, self.count)
+            cv.gdb_set_convenience_variable(cv_name, self.p.dereference())
+            result = ('$%s' % cv_name, self.p.dereference())
             self.count = self.count + 1
 
             # Advance the 'cur' pointer.
@@ -877,9 +896,6 @@ class StdDequePrinter:
         end = self.val['_M_impl']['_M_finish']
         return self._iter(start['_M_node'], start['_M_cur'], start['_M_last'],
                           end['_M_cur'], self.buffer_size)
-
-    def display_hint (self):
-        return 'array'
 
 class StdDequeIteratorPrinter:
     "Print std::deque::iterator"
