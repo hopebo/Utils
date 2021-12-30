@@ -410,7 +410,10 @@ class ItemFieldPrinter:
         if item['field_name']:
             db_cata.append(item['field_name'].string())
 
-        trait = "field = " + '.'.join(db_cata)
+        if len(db_cata) == 1:
+            trait = db_cata[0]
+        else:
+            trait = "field = " + '.'.join(db_cata)
 
         return "{} {}".format(PointerDisplay(self.val), trait)
 
@@ -426,8 +429,8 @@ class ItemDerivedPrinter:
         val = self.val.cast(self.val.dynamic_type)
         return PointerDisplay(val)
 
-class ItemPointerPrinter:
-    "Print a pointer of MySQL base Item class"
+class BasePointerPrinter:
+    "Print a pointer of MySQL base class"
     def __init__(self, val):
         self.val = val
 
@@ -495,17 +498,59 @@ class MdlKeyPrinter:
 
         return "{} {}".format(PointerDisplay(self.val), trait)
 
+class FieldPrinter:
+    "Print a pointer to MySQL Field class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+
+        field = self.val.dereference()
+        trait = ""
+        db_cata = []
+        if field['table_name'].dereference():
+            db_cata.append(field['table_name'].dereference().string())
+
+        if field['field_name']:
+            db_cata.append(field['field_name'].string())
+
+        trait = "field = " + '.'.join(db_cata)
+
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
+class SelArgPrinter:
+    "Print a pointer of MySQL SEL_ARG class"
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        sel_arg = self.val.dereference()
+
+        trait = "field = {}, min_value = {}, max_value = {}".format(
+            sel_arg['field'], sel_arg['min_value'], sel_arg['max_value'])
+
+        return "{} {}".format(PointerDisplay(self.val), trait)
+
 def build_pretty_printer():
     pp = CustomRegexpCollectionPrettyPrinter(
         "mysqld")
     pp.add_printer('List', '^List<.*>$', MySQLListPrinter)
-    pp.add_printer('Item_field *', '^Item_field \*$', ItemFieldPrinter)
-    pp.add_printer('Item *', '^Item \*$', ItemPointerPrinter)
-    pp.add_printer('Item_ *', '^Item_.* \*$', ItemDerivedPrinter)
-    pp.add_printer('PT *', '^PT.* \*$', ItemDerivedPrinter)
-    pp.add_printer('TABLE_LIST *', '^TABLE_LIST \*$', TableListPrinter)
-    pp.add_printer('MDL_request *', '^MDL_request \*$', MdlRequestPrinter)
-    pp.add_printer('MDL_key *', '^MDL_key \*$', MdlKeyPrinter)
+    pp.add_printer('Item_field *', '^Item_field \*.*', ItemFieldPrinter)
+    pp.add_printer('Item *', '^Item \*.*', BasePointerPrinter)
+    pp.add_printer('Item_ *', '^Item_.* \*.*', ItemDerivedPrinter)
+    pp.add_printer('PT *', '^PT.* \*.*', ItemDerivedPrinter)
+    pp.add_printer('TABLE_LIST *', '^TABLE_LIST \*.*', TableListPrinter)
+    pp.add_printer('MDL_request *', '^MDL_request \*.*', MdlRequestPrinter)
+    pp.add_printer('MDL_key *', '^MDL_key \*.*', MdlKeyPrinter)
+    pp.add_printer('Field *', '^Field \*.*', BasePointerPrinter)
+    pp.add_printer('Field_ *', '^Field_.* \*.*', FieldPrinter)
+    pp.add_printer('SEL_ARG *', '^SEL_ARG \*.*', SelArgPrinter)
     return pp
 
 gdb.printing.register_pretty_printer(
