@@ -14,6 +14,14 @@ set print object
 # Otherwise in a simple one-line format.
 set print array on
 
+# Support non-stop mode. Current thread stop, other threads go.
+# Must be set before attaching to program.
+# If using the CLI, pagination breaks non-stop.
+set pagination off
+
+# Finally, turn it on!
+set non-stop on
+
 # Alias of enable and disable
 define e
   dont-repeat
