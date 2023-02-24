@@ -128,7 +128,7 @@ def ConstructUML(items_map, item, uml):
     return
 
 
-directory = "/flash12/hope.lb/Documents/Codes/PolarDB_80/sql"
+directory = "/Documents/Codes/MySQL/sql"
 
 source_files = os.listdir(directory)
 
@@ -139,7 +139,7 @@ items_map = {}
 
 for filename in source_files:
     filepath = directory + "/" + filename
-    #filepath = "/flash12/hope.lb/Documents/Codes/PolarDB_80/sql/item.h"
+    #filepath = "/Documents/Codes/MySQL/sql/item.h"
 
     if (os.path.isdir(filepath)):
         continue
