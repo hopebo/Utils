@@ -132,7 +132,7 @@ innodb_adaptive_hash_index     = OFF
 # The path of the directory to use for creating temporary files.
 tmpdir                         = ${INSTALL_DIR}/tmp
 # Enable Debug Sync facility with a non-zero value seconds.
-debug-sync-timeout             = 60
+# debug-sync-timeout             = 60
 
 [mysqld_safe]
 # Passed to mysqld_safe process to communicate with mysqld process.
@@ -151,7 +151,7 @@ alias mysqld_safe.al="mysqld_safe --defaults-file=${MY_CNF} ${GDB} > /dev/null 2
 alias ini.al="mysqld --defaults-file=${MY_CNF} --initialize-insecure"
 alias proc.al="ps -ef | grep \"mysqld\" | grep \"${MY_CNF}\""
 alias kill.al="ps -ef | grep \"mysqld\" | grep \"${MY_CNF}\" | awk '{ print \\\$2 }' | xargs kill -9"
-alias mysql.al="mysql -u root --socket=${DATA_DIR}/mysql.sock --prompt \"\\u@\\h:\\d \\v>\\_\""
+alias mysql.al="mysql -A -u root --socket=${DATA_DIR}/mysql.sock --prompt \"\\u@\\h:\\d \\v>\\_\""
 alias clean.al="rm -rf ${DATA_DIR}"
 alias cnf.al="vim ${MY_CNF}"
 alias log.al="vim ${DATA_DIR}/mysql_error.log"
