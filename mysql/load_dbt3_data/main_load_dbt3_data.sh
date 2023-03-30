@@ -11,6 +11,7 @@ Usage: $0 [options]
 Options:
   -s SOCKET                 MySQL socket file.
   -d DSS_PATH               DBT3 data directory.
+  -p                        If created tables are partitioned tables.
   -h                        Print this message and exit.
 
 This script is intended to generate bash script template.
@@ -19,13 +20,16 @@ EOF
 
 BASEPATH=$(cd `dirname $0`; pwd)
 
-while getopts "s:d:h" opt; do
+while getopts "s:d:ph" opt; do
     case $opt in
         s)
             SOCKET=$OPTARG
             ;;
         d)
             DSS_PATH=$OPTARG
+            ;;
+        p)
+            PARTITIONED=true
             ;;
         h)
             usage
@@ -51,5 +55,10 @@ export MYSQL_IMPORT
 export DSS_PATH
 export DBNAME
 
-bash dbt3-mysql-create-tables
+if [[ ${PARTITIONED} = true ]]; then
+    bash dbt3-mysql-create-partition-tables
+else
+    bash dbt3-mysql-create-tables
+fi
+
 bash dbt3-mysql-load-data
