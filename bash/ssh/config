@@ -1,0 +1,10 @@
+Host *
+    ServerAliveInterval 60
+    # Maximum number of times trying to keep alive
+    ServerAliveCountMax 50
+Host server_ip
+    # Enables the sharing of multiple sessions over a single network connection
+    ControlMaster auto
+    ControlPath /tmp/ssh-%r@%h:%p
+    # How long the socket remains alive even if the terminal is disconnected 
+    ControlPersist 24h
