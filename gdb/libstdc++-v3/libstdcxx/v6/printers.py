@@ -21,9 +21,7 @@ import re
 import sys, os, errno
 
 import utils.convenience_variable as cv
-
-def TypeDisplay(value):
-    return "({}) {}".format(value.dynamic_type, value.format_string(raw = True))
+from utils.utils import AdaptDisplay
 
 ### Python 2 + Python 3 compatibility code
 
@@ -445,15 +443,14 @@ class StdVectorPrinter:
                 if self.so >= self.isize:
                     self.item = self.item + 1
                     self.so = 0
-                cv.gdb_set_convenience_variable(cv_name, obit)
-                return ("$%s" % cv_name, TypeDisplay(obit))
             else:
                 if self.item == self.finish:
                     raise StopIteration
                 elt = self.item.dereference()
                 self.item = self.item + 1
-                cv.gdb_set_convenience_variable(cv_name, elt)
-                return ("$%s" % cv_name, TypeDisplay(elt))
+
+            cv.gdb_set_convenience_variable(cv_name, elt)
+            return ("$%s" % cv_name, AdaptDisplay(elt))
 
     def __init__(self, typename, val):
         self.typename = strip_versioned_namespace(typename)
@@ -738,7 +735,7 @@ class StdMapPrinter:
             cv.gdb_set_convenience_variable(cv_name, item)
 
             result = ('[%d]' % self.count,
-                      cv.gdb_print_cv(cv_name, TypeDisplay(item)))
+                      cv.gdb_print_cv(cv_name, AdaptDisplay(item)))
 
             self.count = self.count + 1
             return result
@@ -780,7 +777,7 @@ class StdSetPrinter:
             # Maybe a 'set' display hint?
             cv_name = "%s%d" % (self.cv_prefix, self.count)
             cv.gdb_set_convenience_variable(cv_name, item)
-            result = ('$%s' % cv_name, TypeDisplay(item))
+            result = ('$%s' % cv_name, AdaptDisplay(item))
             self.count = self.count + 1
             return result
 

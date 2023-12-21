@@ -3,6 +3,8 @@ from __future__ import print_function # python2.X support
 import re
 
 import utils.convenience_variable as cv
+from utils.utils import RawDisplay, AdaptDisplay, RbtreeIterator, \
+StdHashtableIterator, traverse_std_vector
 
 # Define a mysql command prefix for all mysql related command
 gdb.Command('mysql', gdb.COMMAND_DATA, prefix=True)
@@ -396,8 +398,6 @@ class ExpressionTraverser(gdb.Command, TreeWalker):
             cur_elt = cur_elt.dereference()['next']
         return children
 
-def PointerDisplay(value):
-    return "({}) {}".format(value.dynamic_type, value.format_string(raw = True))
 ExpressionTraverser()
 
 class ItemFieldPrinter:
@@ -420,7 +420,7 @@ class ItemFieldPrinter:
         else:
             trait = "field = " + '.'.join(db_cata)
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class ItemDerivedPrinter:
     "Print a pointer to MySQL Item derived class"
@@ -432,7 +432,7 @@ class ItemDerivedPrinter:
             return self.val.format_string(raw = True)
 
         val = self.val.cast(self.val.dynamic_type)
-        return PointerDisplay(val)
+        return RawDisplay(val)
 
 class BasePointerPrinter:
     "Print a pointer of MySQL base class"
@@ -466,7 +466,7 @@ class TableListPrinter:
         if table_list['nested_join']:
             trait += "nested join"
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class MdlRequestPrinter:
     "Print a pointer of MySQL MDL_request class"
@@ -483,7 +483,7 @@ class MdlRequestPrinter:
             mdl_request['type'], mdl_request['duration'],
             mdl_request['key'].address)
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class MdlKeyPrinter:
     "Print a pointer of MySQL MDL_key class"
@@ -501,7 +501,7 @@ class MdlKeyPrinter:
         trait = "namespace = {}, m_ptr = {}".format(mdl_namespace,
                                                     mdl_key['m_ptr'])
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class FieldPrinter:
     "Print a pointer to MySQL Field class"
@@ -524,7 +524,7 @@ class FieldPrinter:
 
         trait = "field = " + '.'.join(db_cata)
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class SelArgPrinter:
     "Print a pointer of MySQL SEL_ARG class"
@@ -540,7 +540,7 @@ class SelArgPrinter:
         trait = "field = {}, min_value = {}, max_value = {}".format(
             sel_arg['field'], sel_arg['min_value'], sel_arg['max_value'])
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class SelectLexPrinter:
     def __init__(self, val):
@@ -617,7 +617,7 @@ class ItemStringPrinter:
             trait = "{} \"{}\"".format("str_value =",
                                        item['str_value']['m_ptr'].string())
 
-        return "{} {}".format(PointerDisplay(self.val), trait)
+        return "{} {}".format(RawDisplay(self.val), trait)
 
 class ItemIntPrinter:
     "Print a pointer to MySQL Item_int class"
@@ -629,7 +629,7 @@ class ItemIntPrinter:
         item = val_derived.dereference()
         trait = "value = " + str(item['value'])
 
-        return "{} {}".format(PointerDisplay(val_derived), trait)
+        return "{} {}".format(RawDisplay(val_derived), trait)
 
 class CustomPrettyPrinterLocator(gdb.printing.PrettyPrinter):
     """Given a gdb.Value, search for a custom pretty printer"""
