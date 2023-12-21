@@ -393,7 +393,7 @@ class ExpressionTraverser(gdb.Command):
 ExpressionTraverser()
 
 def PointerDisplay(value):
-    return "({}) {}".format(value.type, value.format_string(raw = True))
+    return "({}) {}".format(value.dynamic_type, value.format_string(raw = True))
 
 class ItemFieldPrinter:
     "Print a pointer to MySQL Item_field class"
