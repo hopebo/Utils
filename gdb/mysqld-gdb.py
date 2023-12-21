@@ -656,3 +656,130 @@ gdb.printing.register_pretty_printer(
     gdb.current_objfile(),
     CustomPrettyPrinterLocator(),
     True)
+
+"""
+IMCI related pretty printers
+"""
+class ImciRelationTraverser(gdb.Command, TreeWalker):
+    '''print IMCI relation tree'''
+
+    def __init__(self):
+        super(self.__class__, self).__init__(
+            "mysql iqbtree", gdb.COMMAND_OBSCURE)
+        self.meta = None
+
+    def invoke(self, arg, from_tty):
+        args = gdb.string_to_argv(arg)
+        if len(args) < 1:
+            print("usage: mysql imcitree [RelationBase *] [MetadataCache *]")
+            return
+
+        cur_rel = gdb.parse_and_eval(args[0])
+        # Passed in metadata provider to display more informations, which is
+        # optional.
+        if len(args) > 1:
+            self.meta = gdb.parse_and_eval(args[1])
+
+        parent = cur_rel
+        while parent:
+            root = parent
+            parent = root.dereference()['parent_rel_']
+
+        self.walk(root, cur_rel)
+
+    def walk_Optimizer_RelationBase(self, relation):
+        child_vec = relation.dereference()['child_rels_']
+        children = traverse_std_vector(child_vec)
+
+        return children
+
+    def show_Optimizer_CTableScan(self, relation):
+        table_name = ''
+
+        if self.meta is not None:
+            obj_map = self.meta.dereference()['object_map_']
+            myiter = StdHashtableIterator(obj_map)
+
+            for pair in myiter:
+                obj_id = pair['first']
+
+                if relation.dereference()['table_id_'] != obj_id:
+                    continue
+
+                # Shared pointer
+                object_info = pair['second']
+                object_info = object_info['_M_ptr'].cast(
+                    object_info.type.template_argument(0).pointer())
+
+                table_name = object_info.dereference()['name_']
+
+        return "{} {}".format(AdaptDisplay(relation), table_name)
+
+    def show_Optimizer_EqualJoin(self, relation):
+        return "{} {}".format(AdaptDisplay(relation),
+                              relation.dereference()['join_type_'])
+
+ImciRelationTraverser()
+
+class ImciExpressionTraverser(gdb.Command, TreeWalker):
+    '''print IMCI expression tree'''
+    def __init__(self):
+        super(self.__class__, self).__init__(
+            "mysql iexprtree", gdb.COMMAND_OBSCURE)
+        self.meta = None
+
+    def invoke(self, arg, from_tty):
+        args = gdb.string_to_argv(arg)
+        if len(args) < 1:
+            print("usage: mysql iexprtree [Expression *] [MetadataCache *]")
+            return
+
+        expr = gdb.parse_and_eval(args[0])
+        if len(args) > 1:
+            self.meta = gdb.parse_and_eval(args[1])
+
+        self.walk(expr)
+
+    def walk_Optimizer_Expression(self, expr):
+        child_vec = expr.dereference()['child_exprs_']
+        # Traverse std::vector
+        children = traverse_std_vector(child_vec)
+
+        return children
+
+    def show_Optimizer_Field(self, val):
+        col_name = ''
+
+        # Find table name from metacache
+        if self.meta is not None:
+            col_map = self.meta.dereference()['column_map_']
+            myiter = RbtreeIterator(col_map)
+
+            for pair in myiter:
+                tab_col_id = pair['first']
+
+                if val.dereference()['rel_id_'] != tab_col_id['table_id'] or \
+                   val.dereference()['col_id_'] != tab_col_id['col_id']:
+                    continue
+
+                # Shared pointer
+                column_info = pair['second']
+                column_info = column_info['_M_ptr'].cast(
+                    column_info.type.template_argument(0).pointer())
+
+                col_name = column_info.dereference()['name_']
+                break
+
+        return "{} {}".format(AdaptDisplay(val), col_name)
+
+    def show_Optimizer_Predicate(self, val):
+        return "{} {}".format(AdaptDisplay(val),
+                              val.dereference()['pred_type_'])
+
+    def show_Optimizer_IntConst(self, val):
+        return "{} {}".format(AdaptDisplay(val), val.dereference()['value_'])
+
+    show_Optimizer_StrConst = show_Optimizer_IntConst
+    show_Optimizer_DoubleConst = show_Optimizer_IntConst
+
+ImciExpressionTraverser()
