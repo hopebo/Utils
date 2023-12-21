@@ -14,6 +14,9 @@ set print object
 # Otherwise in a simple one-line format.
 set print array on
 
+# Print original contents instead of displaying in format of <repeats x times>
+set print repeats 0
+
 # Support non-stop mode. Current thread stop, other threads go.
 # Must be set before attaching to program.
 # If using the CLI, pagination breaks non-stop.
