@@ -215,124 +215,56 @@ class CustomRegexpCollectionPrettyPrinter(RegexpCollectionPrettyPrinter):
         return None
 
 '''
-MySQL query block structure.
+Base class for Tree-like structure traverse.
 '''
-class MySQLQueryBlock(object):
-    def __init__(self, stack_depth, index, value):
-        self.stack_depth = stack_depth
-        self.index = index
-        self.value = value
-
-    def __str__(self):
-        if self.stack_depth == 0:
-            prefix = ''
-        else:
-            prefix = ' ' * 3 * (self.stack_depth - 1) + '|--'
-
-        tables = ""
-        if self.value.dynamic_type.target().name == "SELECT_LEX":
-            leaf_tables = self.value.dereference()['leaf_tables']
-            has_tables = False
-            while leaf_tables:
-                has_tables = True
-                lt = leaf_tables.dereference()
-                tables += lt['table_name'].string() + ", "
-                leaf_tables = lt['next_leaf']
-
-            if has_tables:
-                tables = "tables: " + tables[0 : len(tables) - 2]
-            else:
-                tables = "no tables"
-
-        return "{}{} ({}) {} {}".format(prefix, str(self.index),
-                                        self.value.dynamic_type, self.value, tables)
-
-'''
-GDB qbtree print query block tree command.
-'''
-try:
-    import Queue
-except:
-    import queue as Queue
-# (gdb) mysql qbtree SELECT_LEX_UNIT/SELECT_LEX
-class QueryBlockTree(gdb.Command):
-    """print query block relationship"""
-    def __init__ (self):
-        super(self.__class__, self).__init__ ("mysql qbtree", gdb.COMMAND_OBSCURE)
-
-    def add_object(self, queue, select, stack_depth):
-        index = 0
-        while select:
-            queue.put(MySQLQueryBlock(stack_depth, index, select))
-            slave = select.dereference()['slave']
-            if slave:
-                self.add_object(queue, slave, stack_depth + 1)
-            select = select.dereference()['next']
-            index += 1
-
-    def invoke(self, arg, from_tty):
-        args = gdb.string_to_argv(arg)
-        if len(args) < 1:
-            print("usage: mysql qbtree [SELECT_LEX_UNIT/SELECT_LEX]")
-            return
-
-        q = Queue.Queue()
-        select = args[0]
-        select = gdb.parse_and_eval(select)
-        master = select.dereference()['master']
-        while master:
-            select = master
-            master = select.dereference()['master']
-
-        self.add_object(q, select, 0)
-
-        cv_name_prefix = cv.get_convenience_name()
-        i = 0
-        while not q.empty():
-            element = q.get()
-            cv_name = "%s%d" % (cv_name_prefix, i)
-            print("${} = {}".format(cv_name, element))
-            cv.gdb_set_convenience_variable(
-                cv_name, element.value.cast(element.value.dynamic_type))
-            i += 1
-
-QueryBlockTree()
-
-'''
-MySQL Item expression tree.
-'''
-class ExpressionTraverser(gdb.Command):
-    """print mysql expression (Item) tree"""
-
-    def __init__ (self):
-        super(self.__class__, self).__init__ ("mysql exprtree", gdb.COMMAND_OBSCURE)
-
-    def invoke(self, arg, from_tty):
-        if not arg:
-            print("usage: mysql exprtree [Item]")
-            return
-        expr = gdb.parse_and_eval(arg)
-        self.cname_prefix = cv.get_convenience_name()
-        self.var_index = 0
+class TreeWalker(object):
+    def __init__(self):
+        self.cv_prefix = None
+        self.count = 0
         self.level_graph = []
+
+    def walk(self, expr, mark_val = None):
+        self.cv_prefix = cv.get_convenience_name()
+        self.count = 0
+        self.level_graph = []
+        self.mark_val = mark_val
+
+        # Recursively walk children elements
         self.do_walk(expr, 0)
 
     def do_walk(self, expr, level):
-        expr_typed = expr.dynamic_type
-        expr_casted = expr.cast(expr_typed)
-        level_graph = '  '.join(self.level_graph[:level])
-        for i, c in enumerate(self.level_graph):
-            if c == '`':
-                self.level_graph[i] = ' '
-        cname = "%s%d" % (self.cname_prefix, self.var_index)
-        left_margin = "{}${} =".format('' if level == 0 else '--', cname)
-        self.var_index += 1
-        item_show_info = ''
-        print("{}{} {}".format(level_graph, left_margin, expr))
-        cv.gdb_set_convenience_variable(cname, expr_casted)
-        walk_func = self.get_walk_func(expr_typed.target())
+        expr_dtype = expr.dynamic_type
+        expr_casted = expr.cast(expr_dtype)
+
+        # Prefix graph symbols like |  |  `--
+        heading_level_graph = '  '.join(self.level_graph[:level])
+
+        # Set convenience variable
+        cv_name = "%s%d" % (self.cv_prefix, self.count)
+        cv.gdb_set_convenience_variable(cv_name, expr)
+        self.count += 1
+
+        show_func = self.get_show_func(expr_dtype.target())
+
+        if show_func is None:
+            expr_info = AdaptDisplay(expr_casted)
+        else:
+            expr_info = show_func(expr_casted)
+
+        print("{}{}{}{}".format(
+            heading_level_graph, '' if level == 0 else '--',
+            cv.gdb_print_cv(cv_name, expr_info),
+            '  <-' if expr == self.mark_val else ''))
+
+        # If all the elements on the previous level have been printed, we don't
+        # need to add `|` in front of nested elements' printing.
+        if level - 1 >= 0 and self.level_graph[level - 1] == '`':
+            self.level_graph[level - 1] = ' '
+
+        walk_func = self.get_walk_func(expr_dtype.target())
         if walk_func is None:
             return
+
         children = walk_func(expr_casted)
         if not children:
             return
@@ -342,11 +274,12 @@ class ExpressionTraverser(gdb.Command):
             self.level_graph[level] = '|'
         for i, child in enumerate(children):
             if i == len(children) - 1:
+                # If it's the last child in current level, use '`' to terminate.
                 self.level_graph[level] = '`'
             self.do_walk(child, level + 1)
 
     def get_action_func(self, item_type, action_prefix):
-        func_name = action_prefix + item_type.name
+        func_name = action_prefix + item_type.name.replace('::', '_')
         if hasattr(self, func_name):
             return getattr(self, func_name)
 
@@ -354,7 +287,9 @@ class ExpressionTraverser(gdb.Command):
             if not field.is_base_class:
                 continue
             typ = field.type
-            func_name = action_prefix + typ.name
+            # Replace namespace '::' with '_', which can compose a valid
+            # function name
+            func_name = action_prefix + typ.name.replace('::', '_')
 
             if hasattr(self, func_name):
                 return getattr(self, func_name)
@@ -363,13 +298,71 @@ class ExpressionTraverser(gdb.Command):
 
         return None
 
+    # Derived class should implement function with specific name walk_typename
+    # to get its children.
     def get_walk_func(self, item_type):
         return self.get_action_func(item_type, 'walk_')
+
+    # Customized show function instead of pretty printer.
+    def get_show_func(self, item_type):
+        return self.get_action_func(item_type, 'show_')
+
+# (gdb) mysql qbtree SELECT_LEX_UNIT/SELECT_LEX
+class QueryBlockTraverser(gdb.Command, TreeWalker):
+    """print query block relationship"""
+
+    def __init__ (self):
+        super(self.__class__, self).__init__(
+            "mysql qbtree", gdb.COMMAND_OBSCURE)
+
+    def invoke(self, arg, from_tty):
+        args = gdb.string_to_argv(arg)
+        if len(args) < 1:
+            print("usage: mysql qbtree [SELECT_LEX_UNIT/SELECT_LEX]")
+            return
+
+        cur_select = gdb.parse_and_eval(args[0])
+
+        master = cur_select
+        while master:
+            root = master
+            master = root.dereference()['master']
+
+        self.walk(root, cur_select)
+
+    def walk_SELECT_LEX(self, select_lex):
+        children = []
+        unit = select_lex.dereference()['slave']
+        while unit:
+            children.append(unit)
+            unit = unit.dereference()['next']
+
+        return children
+
+    walk_SELECT_LEX_UNIT = walk_SELECT_LEX
+
+QueryBlockTraverser()
+
+'''
+MySQL Item expression tree.
+'''
+class ExpressionTraverser(gdb.Command, TreeWalker):
+    """print mysql expression (Item) tree"""
+
+    def __init__ (self):
+        super(self.__class__, self).__init__(
+            "mysql exprtree", gdb.COMMAND_OBSCURE)
+
+    def invoke(self, arg, from_tty):
+        if not arg:
+            print("usage: mysql exprtree [Item]")
+            return
+        expr = gdb.parse_and_eval(arg)
+        self.walk(expr)
 
     #
     # walk functions for each Item class
     #
-
     def walk_Item_func(self, val):
         children = []
         for i in range(val['arg_count']):
@@ -390,10 +383,22 @@ class ExpressionTraverser(gdb.Command):
             cur_elt = cur_elt.dereference()['next']
         return children
 
-ExpressionTraverser()
+    def walk_Item_equal(self, val):
+        end_of_list = gdb.parse_and_eval('end_of_list').address
+        item_list = val['fields']
+        nodetype = item_list.type.template_argument(0)
+        cur_elt = item_list['first']
+        children = []
+        children.append(val['const_item'])
+        while cur_elt != end_of_list:
+            info = cur_elt.dereference()['info']
+            children.append(info.cast(nodetype.pointer()))
+            cur_elt = cur_elt.dereference()['next']
+        return children
 
 def PointerDisplay(value):
     return "({}) {}".format(value.dynamic_type, value.format_string(raw = True))
+ExpressionTraverser()
 
 class ItemFieldPrinter:
     "Print a pointer to MySQL Item_field class"
@@ -537,6 +542,30 @@ class SelArgPrinter:
 
         return "{} {}".format(PointerDisplay(self.val), trait)
 
+class SelectLexPrinter:
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return self.val.format_string(raw = True)
+
+        tables = ""
+        leaf_tables = self.val.dereference()['leaf_tables']
+        has_tables = False
+        while leaf_tables:
+            has_tables = True
+            lt = leaf_tables.dereference()
+            tables += lt['table_name'].string() + ", "
+            leaf_tables = lt['next_leaf']
+
+        if has_tables:
+            tables = "tables: " + tables[0 : len(tables) - 2]
+        else:
+            tables = "no tables"
+
+        return "{} {}".format(RawDisplay(self.val), tables)
+
 def build_pretty_printer():
     pp = CustomRegexpCollectionPrettyPrinter(
         "mysqld")
@@ -551,6 +580,7 @@ def build_pretty_printer():
     pp.add_printer('Field *', '^Field \*.*', BasePointerPrinter)
     pp.add_printer('Field_ *', '^Field_.* \*.*', FieldPrinter)
     pp.add_printer('SEL_ARG *', '^SEL_ARG \*.*', SelArgPrinter)
+    pp.add_printer('SELECT_LEX *', '^SELECT_LEX \*.*', SelectLexPrinter)
     return pp
 
 gdb.printing.register_pretty_printer(
