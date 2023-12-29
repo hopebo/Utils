@@ -345,6 +345,17 @@ class QueryBlockTraverser(gdb.Command, TreeWalker):
 
 QueryBlockTraverser()
 
+def traverse_mysql_list(item_list):
+    end_of_list = gdb.parse_and_eval('end_of_list').address
+    nodetype = item_list.type.template_argument(0)
+    cur_elt = item_list['first']
+    children = []
+    while cur_elt != end_of_list:
+        info = cur_elt.dereference()['info']
+        children.append(info.cast(nodetype.pointer()))
+        cur_elt = cur_elt.dereference()['next']
+    return children
+
 '''
 MySQL Item expression tree.
 '''
@@ -374,31 +385,49 @@ class ExpressionTraverser(gdb.Command, TreeWalker):
     walk_Item_sum = walk_Item_func
 
     def walk_Item_cond(self, val):
-        end_of_list = gdb.parse_and_eval('end_of_list').address
-        item_list = val['list']
-        nodetype = item_list.type.template_argument(0)
-        cur_elt = item_list['first']
-        children = []
-        while cur_elt != end_of_list:
-            info = cur_elt.dereference()['info']
-            children.append(info.cast(nodetype.pointer()))
-            cur_elt = cur_elt.dereference()['next']
-        return children
+        return traverse_mysql_list(val['list'])
 
     def walk_Item_equal(self, val):
-        end_of_list = gdb.parse_and_eval('end_of_list').address
-        item_list = val['fields']
-        nodetype = item_list.type.template_argument(0)
-        cur_elt = item_list['first']
-        children = []
-        children.append(val['const_item'])
-        while cur_elt != end_of_list:
-            info = cur_elt.dereference()['info']
-            children.append(info.cast(nodetype.pointer()))
-            cur_elt = cur_elt.dereference()['next']
+        children = traverse_mysql_list(val['fields'])
+        if val['const_item']:
+            children.append(val['const_item'])
         return children
 
 ExpressionTraverser()
+
+'''
+MySQL Nested Join tree.
+'''
+class NestedJoinTraverser(gdb.Command, TreeWalker):
+    """print mysql nested join tree"""
+
+    def __init__ (self):
+        super(self.__class__, self).__init__(
+            "mysql nestedjoin", gdb.COMMAND_OBSCURE)
+
+    def invoke(self, arg, from_tty):
+        if not arg:
+            print("usage: mysql nestedjoin [TABLE_LIST]")
+            return
+        tl = gdb.parse_and_eval(arg)
+
+        embedding = tl
+        while embedding:
+            root = embedding
+            embedding = root.dereference()['embedding']
+
+        self.walk(root, tl)
+
+    def walk_TABLE_LIST(self, val):
+        children = []
+
+        if val['nested_join']:
+            children = \
+            traverse_mysql_list(val['nested_join'].dereference()['join_list'])
+
+        return children
+
+NestedJoinTraverser()
 
 class ItemFieldPrinter:
     "Print a pointer to MySQL Item_field class"
@@ -429,7 +458,7 @@ class ItemDerivedPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         val = self.val.cast(self.val.dynamic_type)
         return RawDisplay(val)
@@ -441,12 +470,12 @@ class BasePointerPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         # Case the base pointer to derived class.
         val_derived = self.val.cast(self.val.dynamic_type)
         return str(val_derived) if val_derived.type != self.val.type else \
-            self.val.format_string(raw = True)
+            RawDisplay(self.val)
 
 class TableListPrinter:
     "Print a pointer of MySQL TABLE_LIST class"
@@ -455,7 +484,7 @@ class TableListPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         table_list = self.val.dereference()
 
@@ -466,6 +495,14 @@ class TableListPrinter:
         if table_list['nested_join']:
             trait += "nested join"
 
+        if table_list['alias'] and table_list['alias'].string():
+            trait += " as {}".format(table_list['alias'].string())
+
+        if table_list['outer_join'] != 0:
+            trait += " (outer)"
+        else:
+            trait += " (inner)"
+
         return "{} {}".format(RawDisplay(self.val), trait)
 
 class MdlRequestPrinter:
@@ -475,7 +512,7 @@ class MdlRequestPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         mdl_request = self.val.dereference()
 
@@ -492,7 +529,7 @@ class MdlKeyPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         mdl_key = self.val.dereference()
         mdl_namespace = self.val['m_ptr'][0].cast(
@@ -510,8 +547,7 @@ class FieldPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
-
+            return RawDisplay(self.val)
 
         field = self.val.dereference()
         trait = ""
@@ -533,7 +569,7 @@ class SelArgPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         sel_arg = self.val.dereference()
 
@@ -548,7 +584,7 @@ class SelectLexPrinter:
 
     def to_string(self):
         if not self.val:
-            return self.val.format_string(raw = True)
+            return RawDisplay(self.val)
 
         tables = ""
         leaf_tables = self.val.dereference()['leaf_tables']
@@ -697,21 +733,25 @@ class ImciRelationTraverser(gdb.Command, TreeWalker):
         table_name = ''
 
         if self.meta is not None:
-            obj_map = self.meta.dereference()['object_map_']
-            myiter = StdHashtableIterator(obj_map)
+            try:
+                obj_map = self.meta.dereference()['object_map_']
+                myiter = StdHashtableIterator(obj_map)
 
-            for pair in myiter:
-                obj_id = pair['first']
+                for pair in myiter:
+                    obj_id = pair['first']
 
-                if relation.dereference()['table_id_'] != obj_id:
-                    continue
+                    if relation.dereference()['table_id_'] != obj_id:
+                        continue
 
-                # Shared pointer
-                object_info = pair['second']
-                object_info = object_info['_M_ptr'].cast(
-                    object_info.type.template_argument(0).pointer())
+                    # Shared pointer
+                    object_info = pair['second']
+                    object_info = object_info['_M_ptr'].cast(
+                        object_info.type.template_argument(0).pointer())
 
-                table_name = object_info.dereference()['name_']
+                    table_name = object_info.dereference()['name_']
+            except:
+                # Metainfo could have been expired for new query
+                self.meta = None
 
         return "{} {}".format(AdaptDisplay(relation), table_name)
 
@@ -752,23 +792,27 @@ class ImciExpressionTraverser(gdb.Command, TreeWalker):
 
         # Find table name from metacache
         if self.meta is not None:
-            col_map = self.meta.dereference()['column_map_']
-            myiter = RbtreeIterator(col_map)
+            try:
+                col_map = self.meta.dereference()['column_map_']
+                myiter = RbtreeIterator(col_map)
 
-            for pair in myiter:
-                tab_col_id = pair['first']
+                for pair in myiter:
+                    tab_col_id = pair['first']
 
-                if val.dereference()['rel_id_'] != tab_col_id['table_id'] or \
-                   val.dereference()['col_id_'] != tab_col_id['col_id']:
-                    continue
+                    if val.dereference()['rel_id_'] != tab_col_id['table_id'] or \
+                       val.dereference()['col_id_'] != tab_col_id['col_id']:
+                        continue
 
-                # Shared pointer
-                column_info = pair['second']
-                column_info = column_info['_M_ptr'].cast(
-                    column_info.type.template_argument(0).pointer())
+                    # Shared pointer
+                    column_info = pair['second']
+                    column_info = column_info['_M_ptr'].cast(
+                        column_info.type.template_argument(0).pointer())
 
-                col_name = column_info.dereference()['name_']
-                break
+                    col_name = column_info.dereference()['name_']
+                    break
+            except:
+                # Metainfo could have been expired
+                self.meta = None
 
         return "{} {}".format(AdaptDisplay(val), col_name)
 

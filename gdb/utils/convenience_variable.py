@@ -13,7 +13,8 @@ def get_convenience_name():
     return chr(ord('a') + cur)
 
 def gdb_set_convenience_variable(var_name, val):
-    gdb.set_convenience_variable(var_name, val)
+    if hasattr(gdb, 'set_convenience_variable'):
+        gdb.set_convenience_variable(var_name, val)
     return
 
 def gdb_print_cv(cv_name, val):

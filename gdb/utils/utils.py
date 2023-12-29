@@ -3,13 +3,25 @@
 import gdb
 
 def RawDisplay(value):
-    return "({}) {}".format(value.dynamic_type, value.format_string(raw = True))
+    if hasattr(gdb.Value, 'format_string'):
+        info = value.format_string(raw = True)
+    else:
+        if value.dynamic_type.code == gdb.TYPE_CODE_PTR:
+            # Cast pointer type to void * to avoid pretty printer
+            t_void = gdb.lookup_type("void")
+            info = str(value.cast(t_void.pointer()))
+
+    return "({}) {}".format(value.dynamic_type, info)
 
 def AdaptDisplay(value):
     # If pretty printer exists for the type, use the printer. Otherwise, print
     # in raw format.
     if gdb.default_visualizer(value) is not None:
-        return value.format_string()
+        # Compatible with lower version gdb
+        if hasattr(gdb.Value, 'format_string'):
+            return value.format_string()
+        else:
+            return str(value)
     else:
         return RawDisplay(value)
 
