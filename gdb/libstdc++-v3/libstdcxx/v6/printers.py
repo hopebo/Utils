@@ -1016,14 +1016,27 @@ class Tr1UnorderedSetPrinter:
         return '%s with %s' % (self.typename, num_elements(count))
 
     @staticmethod
+    def flatten (list):
+        cv_prefix = cv.get_convenience_name()
+        index = 0
+
+        for elt in list:
+            cv_name = "%s%d" % (cv_prefix, index)
+            cv.gdb_set_convenience_variable(cv_name, elt)
+            index += 1
+            yield cv.gdb_print_cv(cv_name, AdaptDisplay(elt))
+
+    @staticmethod
     def format_count (i):
         return '[%d]' % i
 
     def children (self):
         counter = imap (self.format_count, itertools.count())
         if self.typename.startswith('std::tr1'):
-            return izip (counter, Tr1HashtableIterator (self.hashtable()))
-        return izip (counter, StdHashtableIterator (self.hashtable()))
+            data = self.flatten (Tr1HashtableIterator (self.hashtable()))
+            return izip (counter, data)
+        data = self.flatten (StdHashtableIterator (self.hashtable()))
+        return izip (counter, data)
 
 class Tr1UnorderedMapPrinter:
     "Print a std::unordered_map or tr1::unordered_map"
@@ -1043,9 +1056,15 @@ class Tr1UnorderedMapPrinter:
 
     @staticmethod
     def flatten (list):
+        cv_prefix = cv.get_convenience_name()
+        index = 0
+
         for elt in list:
             for i in elt:
-                yield i
+                cv_name = "%s%d" % (cv_prefix, index)
+                cv.gdb_set_convenience_variable(cv_name, i)
+                index += 1
+                yield cv.gdb_print_cv(cv_name, AdaptDisplay(i))
 
     @staticmethod
     def format_one (elt):

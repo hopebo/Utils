@@ -755,6 +755,8 @@ class ImciRelationTraverser(gdb.Command, TreeWalker):
 
         return "{} {}".format(AdaptDisplay(relation), table_name)
 
+    show_Optimizer_TableScan = show_Optimizer_CTableScan
+
     def show_Optimizer_EqualJoin(self, relation):
         return "{} {}".format(AdaptDisplay(relation),
                               relation.dereference()['join_type_'])
