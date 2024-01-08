@@ -10,6 +10,8 @@ def RawDisplay(value):
             # Cast pointer type to void * to avoid pretty printer
             t_void = gdb.lookup_type("void")
             info = str(value.cast(t_void.pointer()))
+        else:
+            info = str(value)
 
     return "({}) {}".format(value.dynamic_type, info)
 
