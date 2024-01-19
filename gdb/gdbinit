@@ -17,6 +17,9 @@ set print array on
 # Print original contents instead of displaying in format of <repeats x times>
 set print repeats 0
 
+# Make SIGPIPE not stop program
+handle SIGPIPE nostop print
+
 # Support non-stop mode. Current thread stop, other threads go.
 # Must be set before attaching to program.
 # If using the CLI, pagination breaks non-stop.
@@ -108,6 +111,12 @@ define ep
   dont-repeat
   enable pretty-printer
 end
+
+# Skip stepping into specific functions. Use info skip/skip enable/skip disable to manage.
+# c++ headers
+skip -gfi usr/include/c++/*/*/*
+skip -gfi usr/include/c++/*/*
+skip -gfi usr/include/c++/*
 
 python
 import sys

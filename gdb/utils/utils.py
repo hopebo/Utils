@@ -16,6 +16,10 @@ def RawDisplay(value):
     return "({}) {}".format(value.dynamic_type, info)
 
 def AdaptDisplay(value):
+    # Cast python boolean/integer/string to gdb.Value
+    if not isinstance(value, gdb.Value):
+        value = gdb.Value(value)
+
     # If pretty printer exists for the type, use the printer. Otherwise, print
     # in raw format.
     if gdb.default_visualizer(value) is not None:
