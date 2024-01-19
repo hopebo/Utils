@@ -729,6 +729,14 @@ class ImciRelationTraverser(gdb.Command, TreeWalker):
 
         return children
 
+    def get_card_and_cost(self, rel):
+        return "Card: {}, Cost: {}".format(rel.dereference()['card_']['card'],
+                                           rel.dereference()['estimated_cost_'])
+
+    def show_Optimizer_RelationBase(self, relation):
+        return "{} {}".format(AdaptDisplay(relation),
+                              self.get_card_and_cost(relation))
+
     def show_Optimizer_CTableScan(self, relation):
         table_name = ''
 
@@ -753,13 +761,15 @@ class ImciRelationTraverser(gdb.Command, TreeWalker):
                 # Metainfo could have been expired for new query
                 self.meta = None
 
-        return "{} {}".format(AdaptDisplay(relation), table_name)
+        return "{} {} {}".format(AdaptDisplay(relation), table_name,
+                                 self.get_card_and_cost(relation))
 
     show_Optimizer_TableScan = show_Optimizer_CTableScan
 
     def show_Optimizer_EqualJoin(self, relation):
-        return "{} {}".format(AdaptDisplay(relation),
-                              relation.dereference()['join_type_'])
+        return "{} {} {}".format(AdaptDisplay(relation),
+                                 relation.dereference()['join_type_'],
+                                 self.get_card_and_cost(relation))
 
 ImciRelationTraverser()
 
