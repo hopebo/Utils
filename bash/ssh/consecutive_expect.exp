@@ -1,0 +1,19 @@
+#!/usr/bin/expect -f
+
+set timeout 1
+set password "123456"
+spawn ssh hope@127.0.0.1
+
+expect "*$*"
+send "ssh 127.0.0.1\r"
+expect {
+  "*passphrase*" {
+    send "${password}\r"
+    expect "*$*"
+      send "sudo bash -c su\r"
+      expect "*hope:*"
+        send "${password}\r"
+  }
+}
+
+interact
