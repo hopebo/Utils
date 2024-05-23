@@ -23,10 +23,10 @@ handle SIGPIPE nostop print
 # Support non-stop mode. Current thread stop, other threads go.
 # Must be set before attaching to program.
 # If using the CLI, pagination breaks non-stop.
-set pagination off
+# set pagination off
 
 # Finally, turn it on!
-set non-stop on
+# set non-stop on
 
 # Alias of enable and disable
 define e
@@ -45,12 +45,6 @@ define de
   else
     disable $arg0
   end
-end
-
-define mysql13
-  dont-repeat
-  file /PATH/runtime_output_directory/mysqld
-  run --defaults-file=/PATH/my.cnf --gdb --debug
 end
 
 # Debug mysql server.
@@ -121,16 +115,17 @@ skip -gfi usr/include/c++/*
 python
 import sys
 import os
-sys.path.insert(0, os.path.expanduser('/PATH/Utils/gdb/'))
-end
 
-# Mysql tool
-source /PATH/Utils/gdb/mysqld-gdb.py
+path = '/PATH/Utils/gdb'
+sys.path.insert(0, os.path.expanduser(path))
 
 # Import stdlib pretty printer
-python
-import sys
-import os
-sys.path.insert(0, os.path.expanduser('/PATH/Utils/gdb/libstdc++-v3'))
+sys.path.insert(0, os.path.expanduser(os.path.join(path, 'libstdc++-v3')))
 from libstdcxx.v6.printers import register_libstdcxx_printers
+
+# Mysql tool
+gdb.execute('source {}'.format(os.path.join(path, 'mysqld-gdb.py')))
+# Thread tool
+gdb.execute('source {}'.format(os.path.join(path, 'frame-decorator.py')))
+
 end
