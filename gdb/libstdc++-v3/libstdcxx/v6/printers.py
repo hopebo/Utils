@@ -21,7 +21,7 @@ import re
 import sys, os, errno
 
 import utils.convenience_variable as cv
-from utils.utils import AdaptDisplay
+from utils.display import AdaptDisplay
 
 ### Python 2 + Python 3 compatibility code
 

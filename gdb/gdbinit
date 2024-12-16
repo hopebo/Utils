@@ -99,11 +99,14 @@ end
 define dp
   dont-repeat
   disable pretty-printer
+  set print frame-arguments none
 end
 
 define ep
   dont-repeat
   enable pretty-printer
+  # To print only scalar values and ignore arrays & structs for the arguments in backtrace
+  set print frame-arguments scalars
 end
 
 # Skip stepping into specific functions. Use info skip/skip enable/skip disable to manage.
@@ -127,5 +130,7 @@ from libstdcxx.v6.printers import register_libstdcxx_printers
 gdb.execute('source {}'.format(os.path.join(path, 'mysqld-gdb.py')))
 # Thread tool
 gdb.execute('source {}'.format(os.path.join(path, 'frame-decorator.py')))
+# Postgres tool
+gdb.execute('source {}'.format(os.path.join(path, 'postgres-gdb.py')))
 
 end

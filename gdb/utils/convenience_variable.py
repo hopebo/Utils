@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import gdb
 import random
 import traceback
