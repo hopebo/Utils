@@ -25,7 +25,7 @@ while getopts "t" OPT; do
 	esac
 done
 
-PSQL="psql -v ON_ERROR_STOP=1 -X -A -t ${LOCAL_PG_PARAM}"
+PSQL="psql -v ON_ERROR_STOP=1 -X -A -t ${PG_CONNECT_PARAM}"
 
 if [ ${USE_TABLESPACES} -eq 1 ]; then
 	TS_SUPPLIER_DIR="${TSDIR}/supplier/ts"

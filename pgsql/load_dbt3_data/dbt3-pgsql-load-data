@@ -14,7 +14,7 @@ load_table()
 	file=${table}.tbl
 
 	${PSQL} << __EOF__
-COPY ${table} FROM '${DSS_PATH}/${file}' USING DELIMITERS '|';
+\COPY ${table} FROM '${DSS_PATH}/${file}' USING DELIMITERS '|';
 __EOF__
 }
 
@@ -198,7 +198,7 @@ while getopts "t" OPT; do
 	esac
 done
 
-PSQL="psql -v ON_ERROR_STOP=1 -X ${LOCAL_PG_PARAM}"
+PSQL="psql -v ON_ERROR_STOP=1 -X ${PG_CONNECT_PARAM}"
 
 supplier &
 part &

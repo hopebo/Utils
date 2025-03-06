@@ -11,21 +11,32 @@ Usage: $0 [options]
 Options:
   -p PORT                   PostgreSQL server's port number.
   -d DSS_PATH               DBT3 data directory.
+  -U USER                   User name.
+  -H HOST                   Host address.
   -h                        Print this message and exit.
 
-This script is intended to generate bash script template.
 EOF
 }
 
 BASEPATH=$(cd `dirname $0`; pwd)
 
-while getopts "p:d:h" opt; do
+PORT=5432
+HOST="localhost"
+USER="postgres"
+
+while getopts "p:d:U:H:h" opt; do
     case $opt in
         p)
             PORT=$OPTARG
             ;;
         d)
             DSS_PATH=$OPTARG
+            ;;
+        U)
+            USER=$OPTARG
+            ;;
+        H)
+            HOST=$OPTARG
             ;;
         h)
             usage
@@ -38,12 +49,12 @@ while getopts "p:d:h" opt; do
     esac
 done
 
-LOCAL_PG_PARAM="-p ${PORT}"
+PG_CONNECT_PARAM="-h ${HOST} -p ${PORT} -U ${USER}"
 DBNAME="dbt3"
 
-createdb ${LOCAL_PG_PARAM} ${DBNAME}
+createdb ${PG_CONNECT_PARAM} ${DBNAME}
 
-export LOCAL_PG_PARAM="${LOCAL_PG_PARAM} -d ${DBNAME}"
+export PG_CONNECT_PARAM="${PG_CONNECT_PARAM} -d ${DBNAME}"
 export DSS_PATH
 
 bash dbt3-pgsql-create-tables

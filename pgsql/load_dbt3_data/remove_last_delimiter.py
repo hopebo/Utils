@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+# The following command can perform the same effect.
+# for i in `ls *.tbl`; do sed 's/|$//' $i > ${i/tbl/csv}; echo $i; done;
+
 import os
 import re
 
@@ -14,9 +17,6 @@ for filename in data_files:
     print(source_data_path)
 
     target_data_path = target_data + "/" + filename
-
-    #source_data_path = "/flash12/hope.lb/data/dbt3-1G-data/test_supplier.tbl"
-    #target_data_path = "/flash12/hope.lb/data/dbt3-1G-data-pg/test_supplier.tbl"
 
     if (os.path.isdir(source_data_path)):
         continue
@@ -32,5 +32,3 @@ for filename in data_files:
 
     source_data_file_object.close()
     target_data_file_object.close()
-
-    #break
