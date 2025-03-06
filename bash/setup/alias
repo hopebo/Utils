@@ -22,3 +22,22 @@ emacs_man() {
 }
 
 alias man='emacs_man'
+
+# Function to add subdirectories to PATH
+# Call with add_subdirs_to_path "/home/directory"
+add_subdirs_to_path() {
+    local root_dir="$1"
+    local subdirs=""
+
+    # Find all subdirectories
+    while IFS= read -r -d '' dir; do
+        # Skip if the directory name contains a dot
+        [[ "$dir" != *.* ]] && subdirs="${subdirs}:${dir}"
+    done < <(find "$root_dir" -type d -print0)
+
+    # Remove the leading colon
+    subdirs="${subdirs#:}"
+
+    # Add to PATH
+    export PATH="$PATH:$subdirs"
+}
