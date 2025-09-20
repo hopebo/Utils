@@ -8,7 +8,7 @@ import time
 import subprocess
 
 parser = argparse.ArgumentParser(allow_abbrev=True,
-    description='Normalize multi-thread compilation log making it suitable for compildb',
+    description='Normalize multi-thread compilation log making it suitable for compiledb',
     epilog=f'For example: {os.path.basename(sys.argv[0])} -i /local/compilation.log '\
     '-w /local/workdirectory')
 
@@ -122,7 +122,7 @@ print(f"{Colors.GREEN}Generating compile_commands.json file...{Colors.END}", flu
 begin_time = time.time()
 
 command = f"compiledb --parse {output_f} "\
-    f"--output {os.path.join(directory, 'compile_commands.json')}"
+    f"--output {os.path.join(directory, 'compile_commands.json')} --overwrite"
 
 print(command, flush=True)
 result = subprocess.run(command, shell=True, stderr=subprocess.STDOUT)
