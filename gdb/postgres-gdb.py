@@ -120,11 +120,32 @@ class PGListPrinter:
         return "{} with {} elements, allocated length: {}".format(
             self.typeStr, self.length, self.allocated_length)
 
+'''
+Relation(RelationData *) printer
+'''
+class RelationPrinter:
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        if not self.val:
+            return RawDisplay(self.val)
+
+        relation = self.val.dereference()
+
+        trait = ""
+        if relation['rd_rel']:
+            trait = "relation_name = " + \
+                relation['rd_rel'].dereference()['relname']['data'].string()
+
+        return "{} {}".format(RawDisplay(self.val), trait)
+
 def build_pg_pretty_printer():
     pp = CustomRegexpCollectionPrettyPrinter(
         "postgres")
-    pp.add_printer('Node *', '^(Node|Expr) \*[^*]*', NodePrinter)
+    pp.add_printer('Node *', '^(Node|Expr|Plan|PlanState) \*[^*]*', NodePrinter)
     pp.add_printer('List *', '^List \*[^*]*', PGListPrinter)
+    pp.add_printer('Relation', '^(struct RelationData \*|Relation)[^*]*', RelationPrinter)
     return pp
 
 gdb.printing.register_pretty_printer(
@@ -184,3 +205,105 @@ class PGExpressionTraverser(gdb.Command, PGTreeWalker):
     walk_BoolExpr = walk_FuncExpr
 
 PGExpressionTraverser()
+
+class RelationIdGetRelation(gdb.Command):
+    "Retrieve RelationData by Oid"
+    def __init__ (self):
+        super(self.__class__, self).__init__(
+            "pg relation", gdb.COMMAND_OBSCURE)
+
+    def invoke(self, arg, from_tty):
+        if not arg:
+            print("usage: pg relation [Oid]")
+            return
+
+        oid = int(gdb.parse_and_eval(arg))
+        result = gdb.parse_and_eval("RelationIdGetRelation({})".format(oid))
+
+        cv_name = cv.get_convenience_name()
+        cv.gdb_set_convenience_variable(cv_name, result)
+
+        print(cv.gdb_print_cv(cv_name, AdaptDisplay(result)))
+
+        if result:
+            gdb.parse_and_eval("RelationClose({})".format(RawDisplay(result)))
+
+RelationIdGetRelation()
+
+class SearchSysCache1(gdb.Command):
+    "Retrieve all kinds of Form_pg_* metadata by Oid"
+    def __init__ (self):
+        super(self.__class__, self).__init__(
+            "pg syscache", gdb.COMMAND_OBSCURE)
+
+    def invoke(self, arg, from_tty):
+        args = gdb.string_to_argv(arg)
+        if len(args) < 2:
+            print("usage: pg syscache [cache type] [Oid]")
+            print("supported cache types: ft/type/rel/oper")
+            return
+
+        cv_name = cv.get_convenience_name()
+
+        if args[0] == "ft":
+            cache_id = "FOREIGNTABLEREL"
+            result_type = "Form_pg_foreign_table"
+        elif args[0] == "type":
+            cache_id = "TYPEOID"
+            result_type = "Form_pg_type"
+        elif args[0] == "rel":
+            cache_id = "RELOID"
+            result_type = "Form_pg_class"
+        elif args[0] == "oper":
+            cache_id = "OPEROID"
+            result_type = "Form_pg_operator"
+        else:
+            print("unsupported cache type")
+            return
+
+        cache_id = gdb.parse_and_eval(cache_id)
+        oid = int(gdb.parse_and_eval(args[1]))
+        result_type = gdb.lookup_type(result_type)
+
+        function_call = "SearchSysCache1({}, ObjectIdGetDatum({}))" \
+            .format(cache_id, oid)
+
+        heaptuple = gdb.parse_and_eval(function_call)
+        if not heaptuple:
+            cv.gdb_set_convenience_variable(cv_name, heaptuple)
+            print(cv.gdb_print_cv(cv_name, AdaptDisplay(heaptuple)))
+            return
+
+        char_pointer_type = gdb.lookup_type("char").pointer()
+
+        # GETSTRUCT
+        data = heaptuple.dereference()['t_data'].cast(char_pointer_type) + \
+            heaptuple.dereference()['t_data'].dereference()['t_hoff']
+
+        result = data.cast(result_type)
+
+        cv.gdb_set_convenience_variable(cv_name, result)
+        print(cv.gdb_print_cv(cv_name, AdaptDisplay(result)))
+
+        gdb.parse_and_eval("ReleaseSysCache({})".format(heaptuple))
+
+SearchSysCache1()
+
+class BreakNewNode(gdb.Command):
+    "Set a breakpoint when the specified type is allocated"
+    def __init__ (self):
+        super(self.__class__, self).__init__(
+            "pg new", gdb.COMMAND_OBSCURE)
+
+    def invoke(self, arg, from_tty):
+        if not arg:
+            print("usage: pg new [StructName]")
+            return
+
+        data_type = gdb.lookup_type(arg)
+        type_tag = gdb.parse_and_eval("T_{}".format(arg))
+
+        bp = gdb.Breakpoint("newNode")
+        bp.condition = "tag == T_{}".format(arg)
+
+BreakNewNode()

@@ -77,8 +77,15 @@ def refine_compile_json(build_dir, target_dir=None):
             i += 1
             continue
 
+        # Every file
         for key in data[i]:
-            data[i][key] = replace_path(data[i][key], build_dir, target_dir)
+            # Arguments array
+            if isinstance(data[i][key], list):
+                for j in range(len(data[i][key])):
+                    data[i][key][j] = replace_path(data[i][key][j], build_dir,
+                                                   target_dir)
+            else:
+                data[i][key] = replace_path(data[i][key], build_dir, target_dir)
         i += 1
 
 

@@ -10,6 +10,9 @@ set print pretty on
 # When printing a pointer to object, print its subclass' type
 set print object
 
+# Whether print static members of a class
+set print static-members off
+
 # When printing an array, display the values of arrays using longer multi-line format.
 # Otherwise in a simple one-line format.
 set print array on

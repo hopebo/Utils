@@ -262,13 +262,22 @@ class UniquePointerPrinter:
             tuple_member = val['_M_t']
         else:
             raise ValueError("Unsupported implementation for unique_ptr: %s" % str(impl_type))
+        # First _Tuple_impl<0, T...> base class
         tuple_impl_type = tuple_member.type.fields()[0].type # _Tuple_impl
+
         tuple_head_type = tuple_impl_type.fields()[1].type   # _Head_base
         head_field = tuple_head_type.fields()[0]
+
+        # Get the _Head_base<N, T> base class:
+        head_base = tuple_member.cast(tuple_head_type)
+
         if head_field.name == '_M_head_impl':
-            self.pointer = tuple_member['_M_head_impl']
+            # The tuple element is the _Head_base::_M_head_impl data member.
+            self.pointer = head_base['_M_head_impl']
         elif head_field.is_base_class:
-            self.pointer = tuple_member.cast(head_field.type)
+            # The tuple element is an empty base class of _Head_base.
+            # Cast to that empty base class.
+            self.pointer = head_base.cast(head_field.type)
         else:
             raise ValueError("Unsupported implementation for tuple in unique_ptr: %s" % str(impl_type))
 
@@ -276,11 +285,7 @@ class UniquePointerPrinter:
         return SmartPtrIterator(self.pointer)
 
     def to_string (self):
-        cv_name = cv.get_convenience_name()
-        cv.gdb_set_convenience_variable(cv_name, self.pointer)
-        return "std::unique_ptr<{}> containing {}".format(
-            self.pointer.type.target(),
-            cv.gdb_print_cv(cv_name, AdaptDisplay(self.pointer)))
+        return "std::unique_ptr<{}>".format(self.pointer.type.target())
 
 def get_value_from_aligned_membuf(buf, valtype):
     """Returns the value held in a __gnu_cxx::__aligned_membuf."""
